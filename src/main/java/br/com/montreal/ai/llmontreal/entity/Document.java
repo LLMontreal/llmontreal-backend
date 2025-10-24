@@ -1,17 +1,20 @@
 package br.com.montreal.ai.llmontreal.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "documentos")
+@Table(name = "documents")
 @Getter
 @Setter
 @Builder
+@AllArgsConstructor
 @NoArgsConstructor
-public class Documento {
+public class Document {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
