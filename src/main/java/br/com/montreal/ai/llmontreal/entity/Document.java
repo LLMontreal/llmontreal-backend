@@ -31,13 +31,16 @@ public class Document {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
-    @Column(nullable = false)
-    private String filename;
+    @Column(name = "file_name", nullable = false)
+    private String fileName;
     
-    @Column(name = "filetype")
-    private String filetype;
+    @Column(name = "file_type", nullable = false)
+    private String fileType;
     
     @Column(columnDefinition = "TEXT")
     private String summary;
+
+    @Column(name = "file_data", nullable = false)
+    private byte[] fileData;
 
 }
