@@ -14,12 +14,12 @@ public class DocumentService {
     @Autowired
     private DocumentRepository documentRepository;
 
-    public Page<Document> getAllDocuments(Pageable pageable) {
-        return documentRepository.findAll(pageable);
-    }
+    public Page<Document> getAllDocuments(Pageable pageable, DocumentStatus documentStatus) {
+        if (documentStatus == null) {
+            return documentRepository.findAll(pageable);
+        }
 
-    public Page<Document> getAllDocumentsByStatus(Pageable pageable, DocumentStatus status) {
-        return documentRepository.findAllByStatus(pageable, status);
+        return documentRepository.findAllByStatus(pageable, documentStatus);
     }
 
 }

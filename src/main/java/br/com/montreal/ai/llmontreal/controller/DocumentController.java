@@ -22,15 +22,8 @@ public class DocumentController {
     public ResponseEntity<Page<DocumentDTO>> getAllDocuments(
             Pageable pageable,
             @RequestParam(value = "status", required = false) DocumentStatus documentStatus) {
-        Page<Document> docs;
-
-        if (documentStatus != null) {
-            docs = documentService.getAllDocumentsByStatus(pageable, documentStatus);
-        } else {
-            docs = documentService.getAllDocuments(pageable);
-        }
-
-        Page<DocumentDTO> docsDTO = docs.map(DocumentDTO::toDTO);
+        Page<DocumentDTO> docsDTO = documentService.getAllDocuments(pageable, documentStatus)
+                .map(DocumentDTO::toDTO);
         return ResponseEntity.status(HttpStatus.OK).body(docsDTO);
     }
 
