@@ -60,7 +60,7 @@ public class DocumentServiceTests {
 
         when(documentRepository.findAll(pageable)).thenReturn(expectedPage);
 
-        Page<Document> result = documentService.getAllDocuments(pageable);
+        Page<Document> result = documentService.getAllDocuments(pageable, null);
 
         assertThat(result).isNotNull();
         assertThat(result.isEmpty()).isFalse();
@@ -95,7 +95,7 @@ public class DocumentServiceTests {
         when(documentRepository.findAllByStatus(pageable, status))
                 .thenReturn(expectedPage);
 
-        Page<Document> result = documentService.getAllDocumentsByStatus(pageable, status);
+        Page<Document> result = documentService.getAllDocuments(pageable, status);
 
         assertThat(result.getContent())
                 .isNotEmpty()
@@ -108,7 +108,7 @@ public class DocumentServiceTests {
     void shouldReturnEmptyPageWhenNoDocumentsFoundByValidStatus() {
         when(documentRepository.findAllByStatus(eq(pageable), any(DocumentStatus.class))).thenReturn(Page.empty());
 
-        Page<Document> result = documentService.getAllDocumentsByStatus(pageable, DocumentStatus.COMPLETED);
+        Page<Document> result = documentService.getAllDocuments(pageable, DocumentStatus.COMPLETED);
         assertThat(result).isNotNull();
         assertThat(result.getContent()).isEmpty();
         verify(documentRepository).findAllByStatus(pageable, DocumentStatus.COMPLETED);

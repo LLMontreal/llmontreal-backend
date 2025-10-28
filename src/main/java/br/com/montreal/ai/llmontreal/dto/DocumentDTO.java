@@ -14,8 +14,8 @@ public record DocumentDTO(
         String fileType,
         String summary
 ) {
-    public static DocumentDTO toDTO(Document doc) {
-        return new DocumentDTO(
+    public DocumentDTO(Document doc) {
+        this(
                 doc.getId(),
                 doc.getStatus(),
                 doc.getCreatedAt(),

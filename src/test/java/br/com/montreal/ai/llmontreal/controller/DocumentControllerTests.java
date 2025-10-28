@@ -58,7 +58,7 @@ public class DocumentControllerTests {
 
     @Test
     void shouldGetAllDocuments() throws Exception {
-        when(documentService.getAllDocuments(any(Pageable.class)))
+        when(documentService.getAllDocuments(any(Pageable.class), isNull()))
                 .thenReturn(documentPage);
 
         mockMvc.perform(MockMvcRequestBuilders.get("/documents")
@@ -70,7 +70,7 @@ public class DocumentControllerTests {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.totalElements", is(6)))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.totalPages", is(2)))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.number", is(0)));
-        verify(documentService).getAllDocuments(any(Pageable.class));
+        verify(documentService).getAllDocuments(any(Pageable.class), isNull());
     }
 
     @ParameterizedTest
@@ -82,7 +82,7 @@ public class DocumentControllerTests {
 
         documentPage = new PageImpl<>(filteredDocs, pageable, filteredDocs.size());
 
-        when(documentService.getAllDocumentsByStatus(any(Pageable.class), eq(status)))
+        when(documentService.getAllDocuments(any(Pageable.class), eq(status)))
                 .thenReturn(documentPage);
 
         mockMvc.perform(MockMvcRequestBuilders.get("/documents")
@@ -95,11 +95,11 @@ public class DocumentControllerTests {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.number", is(0)))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.content[*].status",
                     everyItem(is(status.name()))));
-        verify(documentService).getAllDocumentsByStatus(any(Pageable.class), eq(status));
+        verify(documentService).getAllDocuments(any(Pageable.class), eq(status));
     }
 
     @Test
-    void shouldThrowMethodArgumentTypeMismatchException() throws Exception {
+    void shouldReturnBadRequestForInvalidStatus() throws Exception {
         String invalidValue = "INVALID";
         String paramName = "status";
 
