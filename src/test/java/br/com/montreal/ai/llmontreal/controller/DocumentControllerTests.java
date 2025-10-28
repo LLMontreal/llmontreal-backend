@@ -99,7 +99,7 @@ public class DocumentControllerTests {
     }
 
     @Test
-    void shouldThrowMethodArgumentTypeMismatchException() throws Exception {
+    void shouldReturnBadRequestForInvalidStatus() throws Exception {
         String invalidValue = "INVALID";
         String paramName = "status";
 
