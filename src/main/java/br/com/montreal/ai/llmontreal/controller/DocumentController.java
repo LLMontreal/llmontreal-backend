@@ -1,13 +1,18 @@
 package br.com.montreal.ai.llmontreal.controller;
 
 import br.com.montreal.ai.llmontreal.dto.DocumentDTO;
+import br.com.montreal.ai.llmontreal.dto.DocumentUploadResponse;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.service.DocumentService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import javax.validation.constraints.NotNull;
 
 @RestController
 @RequestMapping("/documents")
@@ -28,5 +33,12 @@ public class DocumentController {
         return ResponseEntity.status(HttpStatus.OK).body(docsDTO);
     }
 
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<DocumentUploadResponse> uploadFile(@RequestParam("file") @NotNull MultipartFile file) {
 
+        DocumentUploadResponse response = documentService.uploadFile(file);
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
+    }
 }
