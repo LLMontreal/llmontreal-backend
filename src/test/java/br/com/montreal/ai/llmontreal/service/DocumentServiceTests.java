@@ -41,7 +41,7 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("DocumentService Unit Tests")
-public class DocumentServiceTests {
+class DocumentServiceTests {
 
     @Mock
     private DocumentRepository documentRepository;

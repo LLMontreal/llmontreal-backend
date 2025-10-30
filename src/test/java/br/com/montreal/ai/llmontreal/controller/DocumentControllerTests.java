@@ -33,7 +33,7 @@ import static org.mockito.Mockito.*;
 
 @WebMvcTest(DocumentController.class)
 @Import(GlobalExceptionHandler.class)
-public class DocumentControllerTests {
+class DocumentControllerTests {
 
     @Autowired
     private MockMvc mockMvc;
