@@ -66,10 +66,7 @@ public class DocumentServiceTests {
                 new Document(),
                 new Document()
         );
-    }
 
-    @BeforeEach
-    void setUpUploadFile() {
         byte[] fileContent = "Conteúdo do documento".getBytes();
         validFile = new MockMultipartFile(
                 "file",
@@ -285,8 +282,8 @@ public class DocumentServiceTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 
-                           "image/jpeg", "image/png", "application/zip"})
+    @ValueSource(strings = {"application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "image/jpeg", "image/png", "application/zip"})
     @DisplayName("Should accept all supported file types")
     void shouldAcceptAllSupportedFileTypes(String contentType) {
         byte[] fileContent = "Content".getBytes();
