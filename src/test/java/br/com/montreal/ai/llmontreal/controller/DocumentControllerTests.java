@@ -1,7 +1,9 @@
 package br.com.montreal.ai.llmontreal.controller;
 
+import br.com.montreal.ai.llmontreal.dto.DocumentUploadResponse;
 import br.com.montreal.ai.llmontreal.entity.Document;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
+import br.com.montreal.ai.llmontreal.exception.FileValidationException;
 import br.com.montreal.ai.llmontreal.exception.GlobalExceptionHandler;
 import br.com.montreal.ai.llmontreal.service.DocumentService;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,11 +17,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
@@ -116,5 +120,80 @@ public class DocumentControllerTests {
         verifyNoInteractions(documentService);
     }
 
+    @Test
+    void shouldUploadFileSuccessfully() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "test-document.pdf",
+                "application/pdf",
+                "PDF content".getBytes()
+        );
 
+        Document savedDoc = Document.builder()
+                .id(1L)
+                .fileName("test-document.pdf")
+                .fileType("application/pdf")
+                .status(DocumentStatus.PENDING)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        DocumentUploadResponse response = new DocumentUploadResponse(savedDoc);
+
+        when(documentService.uploadFile(any())).thenReturn(response);
+
+        mockMvc.perform(MockMvcRequestBuilders.multipart("/documents")
+                        .file(file))
+                .andExpect(MockMvcResultMatchers.status().isCreated());
+
+        verify(documentService).uploadFile(any());
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenFileValidationFails() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "test.txt",
+                "text/plain",
+                "Text content".getBytes()
+        );
+
+        when(documentService.uploadFile(any())).thenThrow(
+                new FileValidationException("Tipo de arquivo não suportado: text/plain. Tipos aceitos: application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, image/jpeg, image/png, application/zip")
+        );
+
+        mockMvc.perform(MockMvcRequestBuilders.multipart("/documents")
+                        .file(file))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.status", is(400)))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.error", is("File Validation Error")))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.errorMessage", 
+                        containsString("Tipo de arquivo não suportado")))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.path", is("/documents")));
+
+        verify(documentService).uploadFile(any());
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenFileIsEmpty() throws Exception {
+        MockMultipartFile emptyFile = new MockMultipartFile(
+                "file",
+                "empty.pdf",
+                "application/pdf",
+                new byte[0]
+        );
+
+        when(documentService.uploadFile(any())).thenThrow(
+                new FileValidationException("O arquivo não pode ser nulo ou vazio")
+        );
+
+        mockMvc.perform(MockMvcRequestBuilders.multipart("/documents")
+                        .file(emptyFile))
+                .andExpect(MockMvcResultMatchers.status().isBadRequest())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.status", is(400)))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.error", is("File Validation Error")))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.errorMessage", 
+                        is("O arquivo não pode ser nulo ou vazio")));
+
+        verify(documentService).uploadFile(any());
+    }
 }
