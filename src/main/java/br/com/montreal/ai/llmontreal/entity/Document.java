@@ -45,4 +45,6 @@ public class Document {
     @Column(name = "file_data", nullable = false)
     private byte[] fileData;
 
+    @OneToOne(cascade = CascadeType.ALL)
+    private ChatSession chatSession;
 }
