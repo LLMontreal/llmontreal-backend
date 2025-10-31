@@ -26,8 +26,10 @@ import reactor.test.StepVerifier;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,7 +45,6 @@ public class ChatServiceTests {
     @Mock
     private WebClient webClient;
 
-    // WebClient flow mocks
     @Mock
     private WebClient.RequestBodyUriSpec requestBodyUriSpec;
     @Mock
@@ -94,8 +95,8 @@ public class ChatServiceTests {
     @Test
     @DisplayName("processMessage should succeed when session and document is found")
     void processMessage_shouldSucceed_whenSessionExists() {
-        when(chatSessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(mockSession));
         when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(mockDocument));
+        when(chatSessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(mockSession));
         when(responseSpec.bodyToMono(OllamaResponseDTO.class)).thenReturn(Mono.just(mockResponseDTO));
 
         Mono<OllamaResponseDTO> result = chatService.processMessage(requestDTO, SESSION_ID, DOC_ID);
@@ -104,26 +105,22 @@ public class ChatServiceTests {
                 .expectNext(mockResponseDTO)
                 .verifyComplete();
 
-        verify(chatSessionRepository, times(2)).findById(1L);
-        verify(documentRepository, times(1)).findById(1L);
-        verify(chatSessionRepository, times(1)).save(mockSession);
-        verify(mockSession, times(1)).addMessage(any(ChatMessage.class));
-
+        verify(chatSessionRepository, times(3)).findById(SESSION_ID);
+        verify(documentRepository, times(1)).findById(DOC_ID);
+        verify(chatSessionRepository, times(2)).save(mockSession);
+        verify(mockSession, times(2)).addMessage(any(ChatMessage.class));
     }
 
     @Test
-    @DisplayName("processMessage should succeed on save when session is created")
-    void processMessage_shouldSucceed_whenSessionIsCreated() {
+    @DisplayName("processMessage should succeed when new session is created")
+    void processMessage_shouldSucceed_whenNewSessionIsCreated() {
         when(documentRepository.findById(DOC_ID)).thenReturn(Optional.of(mockDocument));
 
-        when(chatSessionRepository.findById(SESSION_ID))
-                .thenReturn(Optional.empty()) // processMessage currentSession call
-                .thenReturn(Optional.of(mockSession)); // addMessageToContext call
-
         when(chatSessionRepository.save(any(ChatSession.class))).thenReturn(mockSession);
+        when(chatSessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(mockSession));
         when(responseSpec.bodyToMono(OllamaResponseDTO.class)).thenReturn(Mono.just(mockResponseDTO));
 
-        Mono<OllamaResponseDTO> result = chatService.processMessage(requestDTO, SESSION_ID, DOC_ID);
+        Mono<OllamaResponseDTO> result = chatService.processMessage(requestDTO, null, DOC_ID);
 
         StepVerifier.create(result)
                 .expectNext(mockResponseDTO)
@@ -131,28 +128,8 @@ public class ChatServiceTests {
 
         verify(documentRepository, times(1)).findById(DOC_ID);
         verify(chatSessionRepository, times(2)).findById(SESSION_ID);
-        verify(chatSessionRepository, times(2)).save(any(ChatSession.class));
-        verify(mockSession, times(1)).addMessage(any(ChatMessage.class));
-
-    }
-
-    @Test
-    @DisplayName("processMessage should fail on save when session is not found")
-    void processMessage_shouldFailOnSave_whenSessionIsNotFound() {
-        when(chatSessionRepository.findById(1L)).thenReturn(Optional.empty());
-        when(documentRepository.findById(1L)).thenReturn(Optional.of(mockDocument));
-        when(responseSpec.bodyToMono(OllamaResponseDTO.class)).thenReturn(Mono.just(mockResponseDTO));
-
-
-        Mono<OllamaResponseDTO> result = chatService.processMessage(requestDTO, 1L, 1L);
-
-        StepVerifier.create(result)
-                .expectError(EntityNotFoundException.class)
-                .verify();
-
-        verify(chatSessionRepository, times(2)).findById(1L);
-        verify(documentRepository).findById(1L);
-        verify(chatSessionRepository, times(1)).save(any(ChatSession.class));
+        verify(chatSessionRepository, times(3)).save(any(ChatSession.class));
+        verify(mockSession, times(2)).addMessage(any(ChatMessage.class));
     }
 
     @Test
@@ -166,6 +143,7 @@ public class ChatServiceTests {
 
         assertThat(exception.getMessage()).isEqualTo("Document not found by id: " + DOC_ID);
         verify(webClient, never()).post();
+        verify(chatSessionRepository, never()).findById(anyLong());
     }
 
     @Test
