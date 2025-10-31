@@ -5,6 +5,7 @@ import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -21,7 +22,7 @@ public class ChatSession {
     private Long id;
 
     @OneToMany(cascade = CascadeType.ALL)
-    private List<ChatMessage> context;
+    private List<ChatMessage> context = new ArrayList<>();
     
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
