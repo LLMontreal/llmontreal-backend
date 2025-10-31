@@ -86,5 +86,20 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDTO);
     }
+
+    @ExceptionHandler(OllamaException.class)
+    public ResponseEntity<ErrorResponseDTO> handleOllamaException(
+            OllamaException e,
+            HttpServletRequest req
+    ) {
+        ErrorResponseDTO errorDTO = new ErrorResponseDTO(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "Error getting Ollama Response",
+                e.getMessage(),
+                req.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorDTO);
+    }
 }
 
