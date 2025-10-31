@@ -13,6 +13,7 @@ import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
@@ -39,10 +40,9 @@ public class ChatService {
         Document doc = documentRepository.findById(documentId)
                 .orElseThrow(() -> new EntityNotFoundException("Document not found by id: " + documentId));
 
-        ChatSession currentSession = chatSessionRepository.findById(chatSessionId)
-                .orElseGet(() -> createChatSession(requestDTO.model(), doc));
+        ChatSession currentSession = getOrCreateSession(requestDTO.model(), doc, chatSessionId);
 
-        log.info("Calling {} for {} session...", requestDTO.model(), chatSessionId);
+        log.info("Calling {} for {} session...", requestDTO.model(), currentSession.getId());
 
         return webClient.post()
                 .uri("/api/generate")
@@ -52,13 +52,26 @@ public class ChatService {
                 .timeout(Duration.ofMinutes(2))
                 .doOnSuccess(res -> {
                     log.info("Successfully received response from {}", requestDTO.model());
-                    addMessageToContext(chatSessionId, res.message(), res.author());
+                    addMessageToContext(currentSession.getId(), requestDTO.prompt(), Author.USER.name());
+                    addMessageToContext(currentSession.getId(), res.response(), Author.MODEL.name());
                 })
                 .onErrorMap(WebClientResponseException.class, ex -> {
                     log.error("API call failed to Ollama model: {}. Status: {}, Response: {}",
                             requestDTO.model(), ex.getStatusCode(), ex.getResponseBodyAsString());
 
                     return new OllamaException("Error communicating with Ollama: " + ex.getResponseBodyAsString(), ex);
+                });
+    }
+
+    private ChatSession getOrCreateSession(String model, Document doc, Long chatSessionId) {
+        if (chatSessionId == null) {
+            return createChatSession(model, doc);
+        }
+
+        return chatSessionRepository.findById(chatSessionId)
+                .orElseGet(() -> {
+                    log.warn("ChatSession with id {} not found. Creating new session.", chatSessionId);
+                    return createChatSession(model, doc);
                 });
     }
 
@@ -70,10 +83,10 @@ public class ChatService {
                 .isActive(true)
                 .document(doc)
                 .build();
-
         return chatSessionRepository.save(cs);
     }
 
+    @Transactional
     private void addMessageToContext(Long chatSessionId, String content, String author) {
         ChatSession cs = chatSessionRepository.findById(chatSessionId)
                 .orElseThrow(() -> new EntityNotFoundException("Chat Session not found by id: " + chatSessionId));
