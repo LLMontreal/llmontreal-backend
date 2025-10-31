@@ -21,7 +21,7 @@ public class ChatSession {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToMany(cascade = CascadeType.ALL)
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, mappedBy = "chatSession")
     private List<ChatMessage> context = new ArrayList<>();
     
     @CreatedDate
