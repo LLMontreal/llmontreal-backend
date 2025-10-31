@@ -36,5 +36,37 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDTO);
     }
+
+    @ExceptionHandler(FileValidationException.class)
+    public ResponseEntity<ErrorResponseDTO> handleFileValidation(
+            FileValidationException ex,
+            HttpServletRequest request) {
+        log.warn("Erro de validação de arquivo: {}", ex.getMessage());
+
+        ErrorResponseDTO errorDTO = new ErrorResponseDTO(
+                HttpStatus.BAD_REQUEST.value(),
+                "File Validation Error",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDTO);
+    }
+
+    @ExceptionHandler(FileUploadException.class)
+    public ResponseEntity<ErrorResponseDTO> handleFileUpload(
+            FileUploadException ex,
+            HttpServletRequest request) {
+        log.error("Erro ao fazer upload do arquivo: {}", ex.getMessage(), ex);
+
+        ErrorResponseDTO errorDTO = new ErrorResponseDTO(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "File Upload Error",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorDTO);
+    }
 }
 
