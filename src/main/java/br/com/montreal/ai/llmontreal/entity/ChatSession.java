@@ -34,4 +34,9 @@ public class ChatSession {
 
     @OneToOne
     private Document document;
+
+    public void addMessage(ChatMessage message) {
+        this.context.add(message);
+        message.setChatSession(this);
+    }
 }
