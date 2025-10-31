@@ -1,5 +1,6 @@
 package br.com.montreal.ai.llmontreal.exception;
 
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,6 +68,23 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorDTO);
+    }
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ErrorResponseDTO> handleEntityNotFound(
+            EntityNotFoundException e,
+            HttpServletRequest req
+    ) {
+        log.error("Entidade não encontrada: {}", e.getMessage(), e);
+
+        ErrorResponseDTO errorDTO = new ErrorResponseDTO(
+                HttpStatus.NOT_FOUND.value(),
+                "Entity not found",
+                e.getMessage(),
+                req.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDTO);
     }
 }
 
