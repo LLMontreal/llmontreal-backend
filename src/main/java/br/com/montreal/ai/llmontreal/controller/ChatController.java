@@ -19,9 +19,8 @@ public class ChatController {
     @PostMapping("/{documentId}")
     public Mono<OllamaResponseDTO> sendMessageToOllama(
             @RequestBody OllamaRequestDTO requestDTO,
-            @PathVariable Long documentId,
-            @RequestParam(required = false) Long chatSessionId
+            @PathVariable Long documentId
     ) {
-        return chatService.processMessage(requestDTO, chatSessionId, documentId);
+        return chatService.processMessage(requestDTO, documentId);
     }
 }
