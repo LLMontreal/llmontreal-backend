@@ -81,7 +81,6 @@ public class ChatService {
         log.info("Creating chat session with {}...", model);
 
         ChatSession cs = ChatSession.builder()
-                .createdAt(LocalDateTime.now())
                 .isActive(true)
                 .document(doc)
                 .build();
