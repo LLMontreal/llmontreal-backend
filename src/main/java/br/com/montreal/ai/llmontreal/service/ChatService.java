@@ -55,8 +55,8 @@ public class ChatService {
                 .timeout(Duration.ofMinutes(2))
                 .doOnSuccess(res -> {
                     log.info("Successfully received response from {}", requestDTO.model());
-                    addMessageToContext(currentSession.getId(), requestDTO.prompt(), Author.USER.name());
-                    addMessageToContext(currentSession.getId(), res.response(), Author.MODEL.name());
+                    addMessageToContext(currentSession.getId(), requestDTO.prompt(), Author.USER);
+                    addMessageToContext(currentSession.getId(), res.response(), Author.MODEL);
                 })
                 .onErrorMap(WebClientResponseException.class, ex -> {
                     log.error("API call failed to Ollama model: {}. Status: {}, Response: {}",
@@ -90,12 +90,12 @@ public class ChatService {
     }
 
     @Transactional
-    private void addMessageToContext(Long chatSessionId, String content, String author) {
+    private void addMessageToContext(Long chatSessionId, String content, Author author) {
         ChatSession cs = chatSessionRepository.findById(chatSessionId)
                 .orElseThrow(() -> new EntityNotFoundException("Chat Session not found by id: " + chatSessionId));
 
         ChatMessage chatMessage = ChatMessage.builder()
-                .author(Author.valueOf(author.toUpperCase()))
+                .author(author)
                 .createdAt(LocalDateTime.now())
                 .message(content)
                 .build();
