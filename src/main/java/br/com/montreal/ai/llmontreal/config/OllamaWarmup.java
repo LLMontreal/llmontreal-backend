@@ -2,6 +2,8 @@ package br.com.montreal.ai.llmontreal.config;
 
 import br.com.montreal.ai.llmontreal.dto.OllamaRequestDTO;
 import br.com.montreal.ai.llmontreal.dto.OllamaResponseDTO;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
@@ -15,10 +17,12 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 
 @Component
+@RequiredArgsConstructor
 public class OllamaWarmup {
 
     private static final Logger logger = LoggerFactory.getLogger(OllamaWarmup.class);
 
+    @Autowired
     private final WebClient webClient;
 
     @Value("${ollama.api.model}")
@@ -27,9 +31,6 @@ public class OllamaWarmup {
     @Value("${spring.ai.ollama.base-url}")
     private String ollamaApiUrl;
 
-    public OllamaWarmup(WebClient webClient) {
-        this.webClient = webClient;
-    }
 
     @EventListener(ApplicationReadyEvent.class)
     public void warmUpModel() {

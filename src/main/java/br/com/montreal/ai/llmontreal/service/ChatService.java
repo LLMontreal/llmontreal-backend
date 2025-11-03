@@ -10,8 +10,10 @@ import br.com.montreal.ai.llmontreal.exception.OllamaException;
 import br.com.montreal.ai.llmontreal.repository.ChatSessionRepository;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -22,19 +24,20 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 
 @Service
+@RequiredArgsConstructor
 public class ChatService {
 
+    @Autowired
     private final ChatSessionRepository chatSessionRepository;
+
+    @Autowired
     private final DocumentRepository documentRepository;
+
+    @Autowired
     private final WebClient webClient;
 
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
 
-    public ChatService(ChatSessionRepository chatSessionRepository, DocumentRepository documentRepository, WebClient webClient) {
-        this.chatSessionRepository = chatSessionRepository;
-        this.documentRepository = documentRepository;
-        this.webClient = webClient;
-    }
 
     public Mono<OllamaResponseDTO> processMessage(OllamaRequestDTO requestDTO, Long chatSessionId, Long documentId) {
         Document doc = documentRepository.findById(documentId)
