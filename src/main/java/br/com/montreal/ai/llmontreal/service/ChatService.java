@@ -39,11 +39,11 @@ public class ChatService {
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
 
 
-    public Mono<OllamaResponseDTO> processMessage(OllamaRequestDTO requestDTO, Long chatSessionId, Long documentId) {
+    public Mono<OllamaResponseDTO> processMessage(OllamaRequestDTO requestDTO, Long documentId) {
         Document doc = documentRepository.findById(documentId)
                 .orElseThrow(() -> new EntityNotFoundException("Document not found by id: " + documentId));
 
-        ChatSession currentSession = getOrCreateSession(requestDTO.model(), doc, chatSessionId);
+        ChatSession currentSession = getOrCreateSession(requestDTO.model(), doc);
 
         log.info("Calling {} for {} session...", requestDTO.model(), currentSession.getId());
 
@@ -66,16 +66,15 @@ public class ChatService {
                 });
     }
 
-    private ChatSession getOrCreateSession(String model, Document doc, Long chatSessionId) {
-        if (chatSessionId == null) {
+    private ChatSession getOrCreateSession(String model, Document doc) {
+        ChatSession cs = doc.getChatSession();
+
+        if (cs == null) {
             return createChatSession(model, doc);
         }
 
-        return chatSessionRepository.findById(chatSessionId)
-                .orElseGet(() -> {
-                    log.warn("ChatSession with id {} not found. Creating new session.", chatSessionId);
-                    return createChatSession(model, doc);
-                });
+        return chatSessionRepository.findById(cs.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Chat Session not found by id: " + cs.getId()));
     }
 
     private ChatSession createChatSession(String model, Document doc) {
@@ -86,7 +85,11 @@ public class ChatService {
                 .isActive(true)
                 .document(doc)
                 .build();
-        return chatSessionRepository.save(cs);
+
+        doc.setChatSession(cs);
+
+        Document updatedDoc = documentRepository.save(doc);
+        return updatedDoc.getChatSession();
     }
 
     @Transactional
