@@ -3,8 +3,10 @@ package br.com.montreal.ai.llmontreal.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -14,14 +16,15 @@ import java.util.List;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
 public class ChatSession {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToMany(cascade = CascadeType.ALL)
-    private List<ChatMessage> context;
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER, mappedBy = "chatSession")
+    private List<ChatMessage> context = new ArrayList<>();
     
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -34,4 +37,9 @@ public class ChatSession {
 
     @OneToOne
     private Document document;
+
+    public void addMessage(ChatMessage message) {
+        this.context.add(message);
+        message.setChatSession(this);
+    }
 }

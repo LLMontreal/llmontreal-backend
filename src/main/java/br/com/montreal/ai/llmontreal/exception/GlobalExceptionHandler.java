@@ -1,5 +1,6 @@
 package br.com.montreal.ai.llmontreal.exception;
 
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +65,38 @@ public class GlobalExceptionHandler {
                 "File Upload Error",
                 ex.getMessage(),
                 request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorDTO);
+    }
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ErrorResponseDTO> handleEntityNotFound(
+            EntityNotFoundException e,
+            HttpServletRequest req
+    ) {
+        log.error("Entidade não encontrada: {}", e.getMessage(), e);
+
+        ErrorResponseDTO errorDTO = new ErrorResponseDTO(
+                HttpStatus.NOT_FOUND.value(),
+                "Entity not found",
+                e.getMessage(),
+                req.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorDTO);
+    }
+
+    @ExceptionHandler(OllamaException.class)
+    public ResponseEntity<ErrorResponseDTO> handleOllamaException(
+            OllamaException e,
+            HttpServletRequest req
+    ) {
+        ErrorResponseDTO errorDTO = new ErrorResponseDTO(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "Error getting Ollama Response",
+                e.getMessage(),
+                req.getRequestURI()
         );
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorDTO);
