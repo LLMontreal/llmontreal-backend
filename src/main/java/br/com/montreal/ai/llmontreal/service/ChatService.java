@@ -10,11 +10,9 @@ import br.com.montreal.ai.llmontreal.exception.OllamaException;
 import br.com.montreal.ai.llmontreal.repository.ChatSessionRepository;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
 import jakarta.persistence.EntityNotFoundException;
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -26,7 +24,6 @@ import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
-@NoArgsConstructor(force = true)
 public class ChatService {
 
     private final ChatSessionRepository chatSessionRepository;
