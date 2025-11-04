@@ -85,6 +85,7 @@ public class ChatServiceTests {
         mockSession.setId(SESSION_ID);
         mockDocument = new Document();
         mockDocument.setId(DOC_ID);
+        mockDocument.setChatSession(mockSession);
 
         lenient().when(webClient.post()).thenReturn(requestBodyUriSpec);
         lenient().when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
@@ -99,7 +100,7 @@ public class ChatServiceTests {
         when(chatSessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(mockSession));
         when(responseSpec.bodyToMono(OllamaResponseDTO.class)).thenReturn(Mono.just(mockResponseDTO));
 
-        Mono<OllamaResponseDTO> result = chatService.processMessage(requestDTO, SESSION_ID, DOC_ID);
+        Mono<OllamaResponseDTO> result = chatService.processMessage(requestDTO, DOC_ID);
 
         StepVerifier.create(result)
                 .expectNext(mockResponseDTO)
@@ -120,15 +121,15 @@ public class ChatServiceTests {
         when(chatSessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(mockSession));
         when(responseSpec.bodyToMono(OllamaResponseDTO.class)).thenReturn(Mono.just(mockResponseDTO));
 
-        Mono<OllamaResponseDTO> result = chatService.processMessage(requestDTO, null, DOC_ID);
+        Mono<OllamaResponseDTO> result = chatService.processMessage(requestDTO, DOC_ID);
 
         StepVerifier.create(result)
                 .expectNext(mockResponseDTO)
                 .verifyComplete();
 
         verify(documentRepository, times(1)).findById(DOC_ID);
-        verify(chatSessionRepository, times(2)).findById(SESSION_ID);
-        verify(chatSessionRepository, times(3)).save(any(ChatSession.class));
+        verify(chatSessionRepository, times(3)).findById(SESSION_ID);
+        verify(chatSessionRepository, times(2)).save(any(ChatSession.class));
         verify(mockSession, times(2)).addMessage(any(ChatMessage.class));
     }
 
@@ -138,7 +139,7 @@ public class ChatServiceTests {
         when(documentRepository.findById(DOC_ID)).thenReturn(Optional.empty());
 
         EntityNotFoundException exception = assertThrows(EntityNotFoundException.class, () -> {
-            chatService.processMessage(requestDTO, SESSION_ID, DOC_ID);
+            chatService.processMessage(requestDTO, DOC_ID);
         });
 
         assertThat(exception.getMessage()).isEqualTo("Document not found by id: " + DOC_ID);
@@ -162,7 +163,7 @@ public class ChatServiceTests {
 
         when(responseSpec.bodyToMono(OllamaResponseDTO.class)).thenReturn(Mono.error(mockWebException));
 
-        Mono<OllamaResponseDTO> result = chatService.processMessage(requestDTO, SESSION_ID, DOC_ID);
+        Mono<OllamaResponseDTO> result = chatService.processMessage(requestDTO, DOC_ID);
 
         StepVerifier.create(result)
                 .expectError(OllamaException.class)
