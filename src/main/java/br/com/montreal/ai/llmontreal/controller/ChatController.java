@@ -3,6 +3,7 @@ package br.com.montreal.ai.llmontreal.controller;
 import br.com.montreal.ai.llmontreal.dto.OllamaRequestDTO;
 import br.com.montreal.ai.llmontreal.dto.OllamaResponseDTO;
 import br.com.montreal.ai.llmontreal.service.ChatService;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -13,7 +14,6 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class ChatController {
 
-    @Autowired
     private final ChatService chatService;
 
     @PostMapping("/{documentId}")

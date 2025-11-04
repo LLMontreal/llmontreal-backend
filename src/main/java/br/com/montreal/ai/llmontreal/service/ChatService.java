@@ -10,6 +10,7 @@ import br.com.montreal.ai.llmontreal.exception.OllamaException;
 import br.com.montreal.ai.llmontreal.repository.ChatSessionRepository;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,15 +26,11 @@ import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
+@NoArgsConstructor(force = true)
 public class ChatService {
 
-    @Autowired
     private final ChatSessionRepository chatSessionRepository;
-
-    @Autowired
     private final DocumentRepository documentRepository;
-
-    @Autowired
     private final WebClient webClient;
 
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);

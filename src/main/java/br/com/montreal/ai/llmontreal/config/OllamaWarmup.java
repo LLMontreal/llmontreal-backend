@@ -3,6 +3,7 @@ package br.com.montreal.ai.llmontreal.config;
 import br.com.montreal.ai.llmontreal.dto.OllamaRequestDTO;
 import br.com.montreal.ai.llmontreal.dto.OllamaResponseDTO;
 import br.com.montreal.ai.llmontreal.exception.OllamaException;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,7 +24,6 @@ public class OllamaWarmup {
 
     private static final Logger logger = LoggerFactory.getLogger(OllamaWarmup.class);
 
-    @Autowired
     private final WebClient webClient;
 
     @Value("${ollama.api.model}")
