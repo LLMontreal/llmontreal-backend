@@ -4,6 +4,7 @@ import br.com.montreal.ai.llmontreal.config.KafkaTopicConfig;
 import br.com.montreal.ai.llmontreal.dto.*;
 import br.com.montreal.ai.llmontreal.entity.ChatMessage;
 import br.com.montreal.ai.llmontreal.entity.enums.Author;
+import br.com.montreal.ai.llmontreal.exception.OllamaException;
 import br.com.montreal.ai.llmontreal.repository.ChatSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -46,10 +47,11 @@ public class ChatConsumerService {
                     .timeout(Duration.ofMinutes(2))
                     .block();
 
+            if (ollamaResponse == null) {
+                throw new OllamaException("Ollama error: response is null");
+            }
 
             log.info("Ollama success for {}. Saving model response.", correlationId);
-
-            assert ollamaResponse != null;
 
             ChatMessage chatMessage = chatService
                     .addMessageToContext(sessionId, ollamaResponse.response(), Author.MODEL);
