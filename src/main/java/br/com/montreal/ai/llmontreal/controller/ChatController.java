@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
+import javax.validation.Valid;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
@@ -18,7 +19,7 @@ public class ChatController {
 
     @PostMapping("/{documentId}")
     public Mono<ChatMessageResponseDTO> sendMessageToOllama(
-            @RequestBody ChatMessageRequestDTO requestDTO,
+            @RequestBody @Valid ChatMessageRequestDTO requestDTO,
             @PathVariable Long documentId
     ) {
         CompletableFuture<ChatMessageResponseDTO> responseFuture = chatProducerService.processMessage(requestDTO, documentId);
