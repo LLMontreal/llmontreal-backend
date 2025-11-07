@@ -25,10 +25,11 @@ public class DocumentService {
     private static final long MAX_FILE_SIZE = 25L * 1024 * 1024;
     private static final List<String> ALLOWED_CONTENT_TYPES = Arrays.asList(
             "application/pdf",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // DOCX
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "image/jpeg",
             "image/png",
-            "application/zip"
+            "application/zip",
+            "text/plain"
     );
 
     public DocumentService(DocumentRepository documentRepository) {
