@@ -12,7 +12,40 @@ services:
       - "${DB_HOST_PORT}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    networks:
+      - llmontreal-net
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:4.1.0
+    container_name: llmontreal_kafka
+    environment:
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_NODE_ID=1
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093
+      - KAFKA_CLUSTER_ID=${KAFKA_CLUSTER_ID}
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092,EXTERNAL://localhost:${KAFKA_HOST_PORT:-9095}
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_LOG_DIRS=/var/lib/kafka/data
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
+    ports:
+      - "${KAFKA_HOST_PORT:-9095}:9094"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - llmontreal-net
     restart: unless-stopped
 
 volumes:
   postgres-data:
+  kafka-data:
+
+networks:
+  llmontreal-net:
+    driver: bridge

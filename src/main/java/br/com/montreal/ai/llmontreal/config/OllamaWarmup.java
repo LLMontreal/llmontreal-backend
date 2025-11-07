@@ -1,7 +1,7 @@
 package br.com.montreal.ai.llmontreal.config;
 
-import br.com.montreal.ai.llmontreal.dto.OllamaRequestDTO;
-import br.com.montreal.ai.llmontreal.dto.OllamaResponseDTO;
+import br.com.montreal.ai.llmontreal.dto.ChatMessageRequestDTO;
+import br.com.montreal.ai.llmontreal.dto.ChatMessageResponseDTO;
 import br.com.montreal.ai.llmontreal.exception.OllamaException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,13 +36,13 @@ public class OllamaWarmup {
         logger.info("Warming up Ollama model: {}", defaultModel);
 
         try {
-            OllamaRequestDTO warmupRequest = new OllamaRequestDTO(defaultModel, "hello", false);
+            ChatMessageRequestDTO warmupRequest = new ChatMessageRequestDTO(defaultModel, "hello", false);
 
             webClient.post()
                     .uri("/api/generate")
-                    .body(Mono.just(warmupRequest), OllamaRequestDTO.class)
+                    .body(Mono.just(warmupRequest), ChatMessageRequestDTO.class)
                     .retrieve()
-                    .bodyToMono(OllamaResponseDTO.class)
+                    .bodyToMono(ChatMessageResponseDTO.class)
                     .timeout(Duration.ofMinutes(2))
                     .doOnSuccess(res -> logger.info("Ollama model warmed up successfully."))
                     .doOnError(WebClientResponseException.class, ex -> {
