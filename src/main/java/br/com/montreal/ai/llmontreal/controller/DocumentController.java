@@ -41,4 +41,11 @@ public class DocumentController {
                 .status(HttpStatus.CREATED)
                 .body(response);
     }
+
+    @GetMapping("/{id}/content")
+    public ResponseEntity<String> getExtractedContent(@PathVariable Long id) {
+        return documentService.getExtractedContent(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 }
