@@ -36,8 +36,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("DocumentService Unit Tests")
@@ -45,6 +43,9 @@ class DocumentServiceTests {
 
     @Mock
     private DocumentRepository documentRepository;
+
+    @Mock
+    private DocumentExtractionService documentExtractionService;
 
     @InjectMocks
     private DocumentService documentService;
@@ -150,6 +151,7 @@ class DocumentServiceTests {
     @DisplayName("Should upload document successfully")
     void shouldUploadDocumentSuccessfully() {
         when(documentRepository.save(any(Document.class))).thenReturn(savedDoc);
+        doNothing().when(documentExtractionService).extractContentAsync(any(Long.class));
 
         DocumentUploadResponse result = documentService.uploadFile(validFile);
 
@@ -162,6 +164,7 @@ class DocumentServiceTests {
         assertEquals("Documento enviado com sucesso e aguardando processamento", result.message());
 
         verify(documentRepository).save(any(Document.class));
+        verify(documentExtractionService).extractContentAsync(savedDoc.getId());
     }
 
     @Test
@@ -210,7 +213,7 @@ class DocumentServiceTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"text/plain", "application/json", "video/mp4", "audio/mpeg"})
+    @ValueSource(strings = {"application/json", "video/mp4", "audio/mpeg", "text/html"})
     @DisplayName("Should throw FileValidationException for unsupported content types")
     void shouldThrowExceptionForUnsupportedContentType(String contentType) {
         MockMultipartFile invalidFile = new MockMultipartFile(
@@ -225,6 +228,7 @@ class DocumentServiceTests {
                 .hasMessageContaining("Tipo de arquivo não suportado");
 
         verify(documentRepository, never()).save(any(Document.class));
+        verify(documentExtractionService, never()).extractContentAsync(any(Long.class));
     }
 
     @Test
@@ -304,12 +308,14 @@ class DocumentServiceTests {
                 .build();
 
         when(documentRepository.save(any(Document.class))).thenReturn(doc);
+        doNothing().when(documentExtractionService).extractContentAsync(any(Long.class));
 
         DocumentUploadResponse result = documentService.uploadFile(file);
 
         assertNotNull(result);
         assertEquals(contentType, result.fileType());
         verify(documentRepository).save(any(Document.class));
+        verify(documentExtractionService).extractContentAsync(doc.getId());
     }
 
     private String getExtension(String contentType) {
