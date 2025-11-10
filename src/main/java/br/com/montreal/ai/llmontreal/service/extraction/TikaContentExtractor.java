@@ -24,8 +24,7 @@ public class TikaContentExtractor implements ContentExtractor {
     private static final List<String> SUPPORTED_TYPES = Arrays.asList(
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "text/plain",
-            "application/zip"
+            "text/plain"
     );
 
     private final Parser parser;
