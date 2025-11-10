@@ -18,7 +18,9 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 @Slf4j
 @Component
@@ -42,7 +44,7 @@ public class TesseractContentExtractor implements ContentExtractor {
             @Value("${tesseract.language:por+eng}") String language,
             @Value("${tesseract.page-segmentation-mode:3}") int pageSegMode,
             @Value("${tesseract.oem-mode:3}") int oemMode
-    ) {
+    ) throws TesseractException {
         this.tesseract = new Tesseract();
         this.tempTessdataDir = null;
         
@@ -66,7 +68,7 @@ public class TesseractContentExtractor implements ContentExtractor {
             log.info("TesseractContentExtractor initialized successfully");
         } catch (IOException e) {
             log.error("Failed to initialize TesseractContentExtractor", e);
-            throw new RuntimeException("Failed to initialize Tesseract", e);
+            throw new TesseractException("Failed to initialize Tesseract", e);
         }
     }
 
@@ -208,8 +210,8 @@ public class TesseractContentExtractor implements ContentExtractor {
         return text
                 .replaceAll("[\\p{Cntrl}&&[^\n\r\t]]", "")
                 .replaceAll("[ \\t]+", " ")
-                .replaceAll("\r\n", "\n")
-                .replaceAll("\r", "\n")
+                .replace("\r\n", "\n")
+                .replace("\r", "\n")
                 .replaceAll("\n{3,}", "\n\n")
                 .lines()
                 .map(String::trim)
@@ -221,9 +223,8 @@ public class TesseractContentExtractor implements ContentExtractor {
 
     private void cleanupTempTessdata() {
         if (tempTessdataDir != null && Files.exists(tempTessdataDir)) {
-            try {
-                Files.walk(tempTessdataDir)
-                        .sorted((a, b) -> -a.compareTo(b)) // Delete files before directories
+            try (Stream<Path> paths = Files.walk(tempTessdataDir)) {
+                paths.sorted(Comparator.reverseOrder())
                         .forEach(path -> {
                             try {
                                 Files.delete(path);
@@ -231,7 +232,9 @@ public class TesseractContentExtractor implements ContentExtractor {
                                 log.warn("Failed to delete temporary file: {}", path, e);
                             }
                         });
+
                 log.debug("Cleaned up temporary tessdata directory: {}", tempTessdataDir);
+
             } catch (IOException e) {
                 log.warn("Failed to cleanup temporary tessdata directory: {}", tempTessdataDir, e);
             }

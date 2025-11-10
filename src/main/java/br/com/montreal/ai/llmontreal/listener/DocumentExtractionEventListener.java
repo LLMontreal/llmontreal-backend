@@ -11,8 +11,6 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
