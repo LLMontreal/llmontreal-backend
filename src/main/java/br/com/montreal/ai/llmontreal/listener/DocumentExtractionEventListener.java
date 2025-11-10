@@ -51,7 +51,6 @@ public class DocumentExtractionEventListener {
                         event.getErrorMessage());
             }
 
-            document.setUpdatedAt(LocalDateTime.now());
             documentRepository.save(document);
 
             log.debug("Document {} status updated to {}", event.getDocumentId(), document.getStatus());

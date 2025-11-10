@@ -47,9 +47,7 @@ public class DocumentExtractionService {
 
             log.info("Processing document: {} (type: {})", document.getFileName(), document.getFileType());
 
-            // Atualizar status para PROCESSING
             document.setStatus(DocumentStatus.PROCESSING);
-            document.setUpdatedAt(LocalDateTime.now());
             documentRepository.save(document);
 
             String extractedContent = extractContent(
