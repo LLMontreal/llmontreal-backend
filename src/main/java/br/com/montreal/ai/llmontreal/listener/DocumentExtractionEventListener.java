@@ -8,11 +8,8 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
 
 @Slf4j
 @Component
@@ -27,17 +24,16 @@ public class DocumentExtractionEventListener {
         log.debug("Handling extraction completed event for document {}: success={}",
                 event.getDocumentId(), event.isSuccess());
 
-        try {
-            Document document = documentRepository.findById(event.getDocumentId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Document not found with id: " + event.getDocumentId()
-                    ));
+        Document document = documentRepository.findById(event.getDocumentId())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Document not found with id: " + event.getDocumentId()));
 
+        try {
             if (event.isSuccess()) {
                 document.setExtractedContent(event.getExtractedContent());
                 document.setStatus(DocumentStatus.COMPLETED);
 
-                log.info("✅ Document {} ({}) extraction completed successfully. Content length: {} characters",
+                log.info("Document {} ({}) extraction completed successfully. Content length: {} characters",
                         event.getDocumentId(),
                         document.getFileName(),
                         event.getExtractedContent() != null ? event.getExtractedContent().length() : 0);
@@ -45,7 +41,7 @@ public class DocumentExtractionEventListener {
             } else {
                 document.setStatus(DocumentStatus.FAILED);
 
-                log.error("❌ Document {} ({}) extraction failed: {}",
+                log.error("Document {} ({}) extraction failed: {}",
                         event.getDocumentId(),
                         document.getFileName(),
                         event.getErrorMessage());

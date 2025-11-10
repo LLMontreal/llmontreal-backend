@@ -6,6 +6,7 @@ import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.exception.FileUploadException;
 import br.com.montreal.ai.llmontreal.exception.FileValidationException;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +21,7 @@ import java.util.Optional;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
@@ -33,11 +35,6 @@ public class DocumentService {
             "application/zip",
             "text/plain"
     );
-
-    public DocumentService(DocumentRepository documentRepository, DocumentExtractionService extractionService) {
-        this.documentRepository = documentRepository;
-        this.extractionService = extractionService;
-    }
 
     public Page<Document> getAllDocuments(Pageable pageable, DocumentStatus documentStatus) {
         if (documentStatus == null) {

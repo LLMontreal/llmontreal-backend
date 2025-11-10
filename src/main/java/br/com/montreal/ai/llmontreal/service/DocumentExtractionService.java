@@ -56,6 +56,20 @@ public class DocumentExtractionService {
             );
 
             long duration = System.currentTimeMillis() - startTime;
+
+            if(extractedContent == null || extractedContent.isBlank()) {
+                log.warn("Extraction for document {} returned empty content.", documentId);
+
+                eventPublisher.publishEvent(
+                        DocumentExtractionCompletedEvent.failure(
+                                this,
+                                documentId,
+                                "Nenhum conteúdo pôde ser extraído do documento."
+                        )
+                );
+                return;
+            }
+
             log.info("Extraction completed successfully for document {} in {}ms. Content length: {} characters",
                     documentId, duration, extractedContent != null ? extractedContent.length() : 0);
 
