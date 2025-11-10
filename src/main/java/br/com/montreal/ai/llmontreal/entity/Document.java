@@ -47,4 +47,7 @@ public class Document {
 
     @OneToOne(cascade = CascadeType.ALL)
     private ChatSession chatSession;
+
+    @Column(name = "extracted_content", columnDefinition = "TEXT")
+    private String extractedContent;
 }

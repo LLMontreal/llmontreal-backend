@@ -16,12 +16,14 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
+    private final DocumentExtractionService extractionService;
     private static final long MAX_FILE_SIZE = 25L * 1024 * 1024;
     private static final List<String> ALLOWED_CONTENT_TYPES = Arrays.asList(
             "application/pdf",
@@ -32,8 +34,9 @@ public class DocumentService {
             "text/plain"
     );
 
-    public DocumentService(DocumentRepository documentRepository) {
+    public DocumentService(DocumentRepository documentRepository, DocumentExtractionService extractionService) {
         this.documentRepository = documentRepository;
+        this.extractionService = extractionService;
     }
 
     public Page<Document> getAllDocuments(Pageable pageable, DocumentStatus documentStatus) {
@@ -70,6 +73,9 @@ public class DocumentService {
             Document savedDocument = documentRepository.save(document);
             log.info("Arquivo carregado com sucesso: {} (ID: {})", 
                     savedDocument.getFileName(), savedDocument.getId());
+
+            extractionService.extractContentAsync(savedDocument.getId());
+            log.info("Extração assíncrona iniciada para documento ID: {}", savedDocument.getId());
             
             return new DocumentUploadResponse(savedDocument);
             
@@ -108,5 +114,10 @@ public class DocumentService {
 
         log.debug("Arquivo validado: {} - {} - {} bytes",
                 fileName, contentType, file.getSize());
+    }
+
+    public Optional<String> getExtractedContent(Long documentId) {
+        return documentRepository.findById(documentId)
+                .map(Document::getExtractedContent);
     }
 }
