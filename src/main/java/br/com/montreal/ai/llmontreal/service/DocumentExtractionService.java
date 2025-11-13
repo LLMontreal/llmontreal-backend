@@ -61,11 +61,11 @@ public class DocumentExtractionService {
                 log.warn("Extraction for document {} returned empty content.", documentId);
 
                 eventPublisher.publishEvent(
-                        DocumentExtractionCompletedEvent.failure(
-                                this,
-                                documentId,
-                                "Nenhum conteúdo pôde ser extraído do documento."
-                        )
+                    DocumentExtractionCompletedEvent.failure(
+                            this,
+                            documentId,
+                            "Nenhum conteúdo pôde ser extraído do documento."
+                    )
                 );
                 return;
             }

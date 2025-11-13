@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.util.HtmlUtils;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -44,11 +45,14 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.warn("Erro de validação de arquivo: {}", ex.getMessage());
 
+        String message = HtmlUtils.htmlEscape(ex.getMessage());
+        String uri = HtmlUtils.htmlEscape(request.getRequestURI());
+
         ErrorResponseDTO errorDTO = new ErrorResponseDTO(
                 HttpStatus.BAD_REQUEST.value(),
                 "File Validation Error",
-                ex.getMessage(),
-                request.getRequestURI()
+                message,
+                uri
         );
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorDTO);
@@ -60,11 +64,14 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         log.error("Erro ao fazer upload do arquivo: {}", ex.getMessage(), ex);
 
+        String message = HtmlUtils.htmlEscape(ex.getMessage());
+        String uri = HtmlUtils.htmlEscape(request.getRequestURI());
+
         ErrorResponseDTO errorDTO = new ErrorResponseDTO(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 "File Upload Error",
-                ex.getMessage(),
-                request.getRequestURI()
+                message,
+                uri
         );
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorDTO);
@@ -101,5 +108,24 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorDTO);
     }
-}
 
+    @ExceptionHandler(TesseractException.class)
+    public ResponseEntity<ErrorResponseDTO> handleTesseractException(
+            TesseractException e,
+            HttpServletRequest req
+    ) {
+        log.error("Tesseract OCR error: {}", e.getMessage(), e);
+
+        String message = HtmlUtils.htmlEscape(e.getMessage());
+        String uri = HtmlUtils.htmlEscape(req.getRequestURI());
+
+        ErrorResponseDTO errorDTO = new ErrorResponseDTO(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "Tesseract OCR Error",
+                message,
+                uri
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorDTO);
+    }
+}
