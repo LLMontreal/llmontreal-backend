@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -19,10 +21,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import org.springframework.mock.web.MockMultipartFile;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -156,66 +157,60 @@ class DocumentControllerIntegrationTests {
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "test-document.pdf",
-                "application/pdf",
-                "PDF file content".getBytes()
+                MediaType.APPLICATION_PDF_VALUE,
+                "test file content".getBytes()
         );
 
         mockMvc.perform(multipart("/documents")
                         .file(file))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id", notNullValue()))
+                .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.fileName", is("test-document.pdf")))
+                .andExpect(jsonPath("$.fileType", is(MediaType.APPLICATION_PDF_VALUE)))
                 .andExpect(jsonPath("$.status", is(DocumentStatus.PENDING.name())))
-                .andExpect(jsonPath("$.uploadedAt", notNullValue()));
+                .andExpect(jsonPath("$.uploadedAt").exists())
+                .andExpect(jsonPath("$.message", is("Documento enviado com sucesso e aguardando processamento")));
     }
 
     @Test
-    void shouldReturnBadRequestWhenFileIsMissing() throws Exception {
+    void shouldReturnBadRequestWhenFileIsNull() throws Exception {
         mockMvc.perform(multipart("/documents"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void shouldUploadMultipleFilesSuccessfully() throws Exception {
-        MockMultipartFile file1 = new MockMultipartFile(
+    void shouldUploadImageFileSuccessfully() throws Exception {
+        MockMultipartFile imageFile = new MockMultipartFile(
                 "file",
-                "document1.pdf",
-                "application/pdf",
-                "Content 1".getBytes()
+                "test-image.png",
+                MediaType.IMAGE_PNG_VALUE,
+                "fake image content".getBytes()
         );
 
-        MockMultipartFile file2 = new MockMultipartFile(
-                "file",
-                "document2.docx",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                "Content 2".getBytes()
-        );
-
-        mockMvc.perform(multipart("/documents").file(file1))
+        mockMvc.perform(multipart("/documents")
+                        .file(imageFile))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.fileName", is("document1.pdf")));
-
-        mockMvc.perform(multipart("/documents").file(file2))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.fileName", is("document2.docx")));
+                .andExpect(jsonPath("$.fileName", is("test-image.png")))
+                .andExpect(jsonPath("$.fileType", is(MediaType.IMAGE_PNG_VALUE)))
+                .andExpect(jsonPath("$.status", is(DocumentStatus.PENDING.name())));
     }
 
     @Test
     void shouldGetExtractedContentSuccessfully() throws Exception {
         Document document = Document.builder()
-                .fileName("completed-doc.pdf")
+                .fileName("doc-with-content.pdf")
                 .status(DocumentStatus.COMPLETED)
                 .createdAt(LocalDateTime.now())
                 .fileType("application/pdf")
-                .fileData("original content".getBytes())
-                .extractedContent("This is the extracted text content")
+                .fileData("test content".getBytes())
+                .extractedContent("This is the extracted content from the document")
                 .build();
 
         Document savedDocument = documentRepository.saveAndFlush(document);
 
         mockMvc.perform(get("/documents/{id}/content", savedDocument.getId()))
                 .andExpect(status().isOk())
-                .andExpect(content().string("This is the extracted text content"));
+                .andExpect(jsonPath("$", is("This is the extracted content from the document")));
     }
 
     @Test
@@ -228,39 +223,18 @@ class DocumentControllerIntegrationTests {
 
     @Test
     void shouldReturnNotFoundWhenExtractedContentIsNull() throws Exception {
-        Document document = Document.builder()
-                .fileName("pending-doc.pdf")
+        Document documentWithoutContent = Document.builder()
+                .fileName("doc-without-content.pdf")
                 .status(DocumentStatus.PENDING)
                 .createdAt(LocalDateTime.now())
                 .fileType("application/pdf")
-                .fileData("original content".getBytes())
+                .fileData("test content".getBytes())
                 .extractedContent(null)
                 .build();
 
-        Document savedDocument = documentRepository.saveAndFlush(document);
+        Document savedDocument = documentRepository.saveAndFlush(documentWithoutContent);
 
         mockMvc.perform(get("/documents/{id}/content", savedDocument.getId()))
                 .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void shouldGetExtractedContentForCompletedDocument() throws Exception {
-        Document document = Document.builder()
-                .fileName("processed-doc.pdf")
-                .status(DocumentStatus.COMPLETED)
-                .createdAt(LocalDateTime.now())
-                .fileType("application/pdf")
-                .fileData("original content".getBytes())
-                .extractedContent("Complete extracted content with multiple lines\nLine 2\nLine 3")
-                .build();
-
-        Document savedDocument = documentRepository.saveAndFlush(document);
-
-        mockMvc.perform(get("/documents/{id}/content", savedDocument.getId()))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType("text/plain;charset=UTF-8"))
-                .andExpect(content().string(containsString("Complete extracted content")))
-                .andExpect(content().string(containsString("Line 2")))
-                .andExpect(content().string(containsString("Line 3")));
     }
 }
