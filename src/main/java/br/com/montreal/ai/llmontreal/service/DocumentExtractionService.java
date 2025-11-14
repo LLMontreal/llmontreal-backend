@@ -8,6 +8,7 @@ import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
 import br.com.montreal.ai.llmontreal.service.extraction.ContentExtractor;
 import br.com.montreal.ai.llmontreal.service.ollama.OllamaProducerService;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
@@ -21,22 +22,13 @@ import java.util.Optional;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class DocumentExtractionService {
 
     private final List<ContentExtractor> extractors;
     private final DocumentRepository documentRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final OllamaProducerService ollamaProducerService;
-
-    public DocumentExtractionService(DocumentRepository documentRepository, ApplicationEventPublisher eventPublisher,
-                                     List<ContentExtractor> extractors, OllamaProducerService ollamaProducerService) {
-        this.documentRepository = documentRepository;
-        this.eventPublisher = eventPublisher;
-        this.extractors = extractors.stream()
-                .sorted(Comparator.comparingInt(ContentExtractor::getPriority))
-                .toList();
-        this.ollamaProducerService = ollamaProducerService;
-    }
 
     @Async("documentExtractionExecutor")
     public void extractContentAsync(Long documentId) {
@@ -62,7 +54,6 @@ public class DocumentExtractionService {
                 log.warn("Extraction for document {} returned empty content.", documentId);
 
                 document.setStatus(DocumentStatus.FAILED);
-                documentRepository.save(document);
 
                 eventPublisher.publishEvent(
                     DocumentExtractionCompletedEvent.failure(
@@ -81,8 +72,6 @@ public class DocumentExtractionService {
                     DocumentExtractionCompletedEvent.success(this, documentId, extractedContent)
             );
 
-            document.setExtractedContent(extractedContent);
-            documentRepository.save(document);
             ollamaProducerService.sendSummarizeRequest(document);
         } catch (ExtractionException e) {
             long duration = System.currentTimeMillis() - startTime;
