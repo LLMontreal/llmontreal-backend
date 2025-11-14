@@ -1,9 +1,10 @@
-package br.com.montreal.ai.llmontreal.dto;
+package br.com.montreal.ai.llmontreal.dto.kafka;
 
+import br.com.montreal.ai.llmontreal.dto.ChatMessageResponseDTO;
 import lombok.Builder;
 
 @Builder
-public record KafkaResponseDTO(
+public record KafkaChatResponseDTO(
         String correlationId,
         ChatMessageResponseDTO chatMessageResponseDTO,
         boolean error,

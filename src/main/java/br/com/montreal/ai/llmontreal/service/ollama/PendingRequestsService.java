@@ -1,6 +1,6 @@
 package br.com.montreal.ai.llmontreal.service.ollama;
 
-import br.com.montreal.ai.llmontreal.dto.KafkaResponseDTO;
+import br.com.montreal.ai.llmontreal.dto.kafka.KafkaChatResponseDTO;
 import br.com.montreal.ai.llmontreal.dto.ChatMessageResponseDTO;
 import br.com.montreal.ai.llmontreal.exception.OllamaException;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,7 +27,7 @@ public class PendingRequestsService {
         timestamps.put(correlationId, System.currentTimeMillis());
     }
 
-    public void complete(KafkaResponseDTO responseDTO) {
+    public void complete(KafkaChatResponseDTO responseDTO) {
         String correlationId = responseDTO.correlationId();
         CompletableFuture<ChatMessageResponseDTO> future = pending.remove(correlationId);
         timestamps.remove(correlationId);
