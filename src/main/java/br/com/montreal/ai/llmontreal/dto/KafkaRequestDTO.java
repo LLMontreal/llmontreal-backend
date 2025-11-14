@@ -6,6 +6,6 @@ import lombok.Builder;
 public record KafkaRequestDTO(
         String correlationId,
         Long chatSessionId,
-        ChatMessageRequestDTO chatMessageRequest
+        OllamaRequestDTO chatMessageRequest
 ) {
 }

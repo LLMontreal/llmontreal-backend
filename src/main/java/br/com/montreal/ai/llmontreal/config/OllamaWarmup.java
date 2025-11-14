@@ -1,6 +1,6 @@
 package br.com.montreal.ai.llmontreal.config;
 
-import br.com.montreal.ai.llmontreal.dto.ChatMessageRequestDTO;
+import br.com.montreal.ai.llmontreal.dto.OllamaRequestDTO;
 import br.com.montreal.ai.llmontreal.dto.ChatMessageResponseDTO;
 import br.com.montreal.ai.llmontreal.exception.OllamaException;
 import lombok.RequiredArgsConstructor;
@@ -36,11 +36,11 @@ public class OllamaWarmup {
         logger.info("Warming up Ollama model: {}", defaultModel);
 
         try {
-            ChatMessageRequestDTO warmupRequest = new ChatMessageRequestDTO(defaultModel, "hello", false);
+            OllamaRequestDTO warmupRequest = new OllamaRequestDTO(defaultModel, "hello", false);
 
             webClient.post()
                     .uri("/api/generate")
-                    .body(Mono.just(warmupRequest), ChatMessageRequestDTO.class)
+                    .body(Mono.just(warmupRequest), OllamaRequestDTO.class)
                     .retrieve()
                     .bodyToMono(ChatMessageResponseDTO.class)
                     .timeout(Duration.ofMinutes(2))
