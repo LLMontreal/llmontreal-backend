@@ -128,4 +128,19 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorDTO);
     }
+
+    @ExceptionHandler(SummarizeException.class)
+    public ResponseEntity<ErrorResponseDTO> handleOllamaException(
+            SummarizeException e,
+            HttpServletRequest req
+    ) {
+        ErrorResponseDTO errorDTO = new ErrorResponseDTO(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "Error generating summary",
+                e.getMessage(),
+                req.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorDTO);
+    }
 }
