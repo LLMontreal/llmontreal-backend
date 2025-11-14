@@ -1,4 +1,4 @@
-package br.com.montreal.ai.llmontreal.service;
+package br.com.montreal.ai.llmontreal.service.ollama;
 
 import br.com.montreal.ai.llmontreal.config.KafkaTopicConfig;
 import br.com.montreal.ai.llmontreal.dto.KafkaResponseDTO;
@@ -16,7 +16,7 @@ public class ResponseListenerService {
 
     private final PendingRequestsService pendingRequestsService;
 
-    @KafkaListener(topics = KafkaTopicConfig.RESPONSE_TOPIC, groupId = "ollama-response-group")
+    @KafkaListener(topics = KafkaTopicConfig.CHAT_RESPONSE_TOPIC, groupId = "ollama-response-group")
     public void handleOllamaResponse(KafkaResponseDTO responseDTO) {
         log.info("Received response for correlationId: {}", responseDTO.correlationId());
         pendingRequestsService.complete(responseDTO);

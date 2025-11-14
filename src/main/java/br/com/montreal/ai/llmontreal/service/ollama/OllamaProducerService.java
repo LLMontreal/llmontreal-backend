@@ -1,13 +1,14 @@
-package br.com.montreal.ai.llmontreal.service;
+package br.com.montreal.ai.llmontreal.service.ollama;
 
 import br.com.montreal.ai.llmontreal.config.KafkaTopicConfig;
 import br.com.montreal.ai.llmontreal.dto.KafkaRequestDTO;
-import br.com.montreal.ai.llmontreal.dto.ChatMessageRequestDTO;
+import br.com.montreal.ai.llmontreal.dto.OllamaRequestDTO;
 import br.com.montreal.ai.llmontreal.dto.ChatMessageResponseDTO;
 import br.com.montreal.ai.llmontreal.entity.ChatSession;
 import br.com.montreal.ai.llmontreal.entity.Document;
 import br.com.montreal.ai.llmontreal.entity.enums.Author;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
+import br.com.montreal.ai.llmontreal.service.ChatService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -20,7 +21,7 @@ import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
-public class ChatProducerService {
+public class OllamaProducerService {
 
     private final ChatService chatService;
     private final DocumentRepository documentRepository;
@@ -28,9 +29,9 @@ public class ChatProducerService {
     private final KafkaTemplate<String, KafkaRequestDTO> kafkaTemplate;
     private final PendingRequestsService pendingRequestsService;
 
-    private static final Logger log = LoggerFactory.getLogger(ChatProducerService.class);
+    private static final Logger log = LoggerFactory.getLogger(OllamaProducerService.class);
 
-    public CompletableFuture<ChatMessageResponseDTO> processMessage(ChatMessageRequestDTO requestDTO, Long documentId) {
+    public CompletableFuture<ChatMessageResponseDTO> processMessage(OllamaRequestDTO requestDTO, Long documentId) {
         Document doc = documentRepository.findById(documentId)
                 .orElseThrow(() -> new EntityNotFoundException("Document not found by id: " + documentId));
 
@@ -49,7 +50,7 @@ public class ChatProducerService {
         pendingRequestsService.register(correlationId, future);
 
         log.info("Sending request {} to Kafka for Chat Session {}", correlationId, currentSession.getId());
-        kafkaTemplate.send(KafkaTopicConfig.REQUEST_TOPIC, correlationId, kafkaRequestDTO);
+        kafkaTemplate.send(KafkaTopicConfig.CHAT_REQUEST_TOPIC, correlationId, kafkaRequestDTO);
 
         return future;
     }

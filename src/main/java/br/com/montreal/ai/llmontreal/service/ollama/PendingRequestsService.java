@@ -1,4 +1,4 @@
-package br.com.montreal.ai.llmontreal.service;
+package br.com.montreal.ai.llmontreal.service.ollama;
 
 import br.com.montreal.ai.llmontreal.dto.KafkaResponseDTO;
 import br.com.montreal.ai.llmontreal.dto.ChatMessageResponseDTO;

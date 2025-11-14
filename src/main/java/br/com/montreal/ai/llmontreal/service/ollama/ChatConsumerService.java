@@ -1,4 +1,4 @@
-package br.com.montreal.ai.llmontreal.service;
+package br.com.montreal.ai.llmontreal.service.ollama;
 
 import br.com.montreal.ai.llmontreal.config.KafkaTopicConfig;
 import br.com.montreal.ai.llmontreal.dto.*;
@@ -6,6 +6,7 @@ import br.com.montreal.ai.llmontreal.entity.ChatMessage;
 import br.com.montreal.ai.llmontreal.entity.enums.Author;
 import br.com.montreal.ai.llmontreal.exception.OllamaException;
 import br.com.montreal.ai.llmontreal.repository.ChatSessionRepository;
+import br.com.montreal.ai.llmontreal.service.ChatService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,19 +30,19 @@ public class ChatConsumerService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatConsumerService.class);
 
-    @KafkaListener(topics = KafkaTopicConfig.REQUEST_TOPIC, groupId = "ollama-processors-group")
-    public void handleOllamaRequest(KafkaRequestDTO kafkaRequestDTO) {
+    @KafkaListener(topics = KafkaTopicConfig.CHAT_REQUEST_TOPIC, groupId = "ollama-processors-group")
+    public void sendChatMessage(KafkaRequestDTO kafkaRequestDTO) {
         String correlationId = kafkaRequestDTO.correlationId();
         Long sessionId = kafkaRequestDTO.chatSessionId();
-        ChatMessageRequestDTO chatMessageRequestDTO = kafkaRequestDTO.chatMessageRequest();
+        OllamaRequestDTO ollamaRequestDTO = kafkaRequestDTO.chatMessageRequest();
 
         log.info("Received Kafka request {} for session {}. Calling model {}",
-                correlationId, sessionId, chatMessageRequestDTO.model());
+                correlationId, sessionId, ollamaRequestDTO.model());
 
         try {
             OllamaApiResponseDTO ollamaResponse = webClient.post()
                     .uri("/api/generate")
-                    .body(Mono.just(chatMessageRequestDTO), OllamaApiResponseDTO.class)
+                    .body(Mono.just(ollamaRequestDTO), OllamaApiResponseDTO.class)
                     .retrieve()
                     .bodyToMono(OllamaApiResponseDTO.class)
                     .timeout(Duration.ofMinutes(2))
@@ -71,7 +72,7 @@ public class ChatConsumerService {
                     .errorMessage(null)
                     .build();
 
-            kafkaTemplate.send(KafkaTopicConfig.RESPONSE_TOPIC, correlationId, kafkaResponseDTO);
+            kafkaTemplate.send(KafkaTopicConfig.CHAT_RESPONSE_TOPIC, correlationId, kafkaResponseDTO);
         } catch (Exception e) {
             log.error("Ollama call failed for {}: {}", correlationId, e.getMessage());
 
@@ -89,7 +90,7 @@ public class ChatConsumerService {
                     .errorMessage(errorMsg)
                     .build();
 
-            kafkaTemplate.send(KafkaTopicConfig.RESPONSE_TOPIC, correlationId, kafkaResponseDTO);
+            kafkaTemplate.send(KafkaTopicConfig.CHAT_RESPONSE_TOPIC, correlationId, kafkaResponseDTO);
 
         }
     }
