@@ -1,5 +1,6 @@
 package br.com.montreal.ai.llmontreal.controller;
 
+import br.com.montreal.ai.llmontreal.config.TestOllamaConfig;
 import br.com.montreal.ai.llmontreal.dto.ChatMessageRequestDTO;
 import br.com.montreal.ai.llmontreal.dto.ChatMessageResponseDTO;
 import br.com.montreal.ai.llmontreal.entity.ChatSession;
@@ -15,7 +16,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -34,6 +37,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(TestOllamaConfig.class)
+@EmbeddedKafka(partitions = 1, topics = {"chat_requests", "chat_responses"}, brokerProperties = {"listeners=PLAINTEXT://localhost:9092", "port=9092"})
 class ChatControllerIntegrationTests {
 
     @Autowired
@@ -63,7 +68,6 @@ class ChatControllerIntegrationTests {
                 .isActive(true)
                 .createdAt(LocalDateTime.now())
                 .build();
-        testChatSession = chatSessionRepository.saveAndFlush(testChatSession);
 
         testDocument = Document.builder()
                 .fileName("test-document.pdf")
@@ -74,10 +78,12 @@ class ChatControllerIntegrationTests {
                 .extractedContent("This is the extracted content for testing chat")
                 .chatSession(testChatSession)
                 .build();
-        testDocument = documentRepository.saveAndFlush(testDocument);
 
         testChatSession.setDocument(testDocument);
-        testChatSession = chatSessionRepository.saveAndFlush(testChatSession);
+
+        testDocument = documentRepository.saveAndFlush(testDocument);
+
+        testChatSession = testDocument.getChatSession();
     }
 
     @Test
@@ -103,6 +109,7 @@ class ChatControllerIntegrationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestDTO)))
                 .andExpect(status().isOk())
+                .andDo(result -> System.out.println("Response: " + result.getResponse().getContentAsString()))
                 .andExpect(jsonPath("$.documentId", is(testDocument.getId().intValue())))
                 .andExpect(jsonPath("$.chatSessionId", is(testChatSession.getId().intValue())))
                 .andExpect(jsonPath("$.author", is(Author.MODEL.name())))

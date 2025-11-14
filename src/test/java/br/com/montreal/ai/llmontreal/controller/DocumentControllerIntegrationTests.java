@@ -13,6 +13,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -29,6 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import(TestOllamaConfig.class)
+@EmbeddedKafka(partitions = 1, topics = {"chat_requests", "chat_responses"}, brokerProperties = {"listeners=PLAINTEXT://localhost:9092", "port=9092"})
 class DocumentControllerIntegrationTests {
 
     @Autowired
