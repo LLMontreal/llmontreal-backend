@@ -120,4 +120,9 @@ public class DocumentService {
         return documentRepository.findById(documentId)
                 .map(Document::getExtractedContent);
     }
+
+    public Optional<String> getSummary(Long documentId) {
+        return documentRepository.findById(documentId)
+                .map(Document::getSummary);
+    }
 }
