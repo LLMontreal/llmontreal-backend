@@ -48,4 +48,11 @@ public class DocumentController {
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
+
+    @GetMapping("/{id}/summary")
+    public ResponseEntity<String> getSummary(@PathVariable Long id) {
+        return documentService.getSummary(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 }
