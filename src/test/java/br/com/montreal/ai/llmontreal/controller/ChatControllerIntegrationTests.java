@@ -10,42 +10,34 @@ import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.repository.ChatSessionRepository;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
 import br.com.montreal.ai.llmontreal.service.ChatProducerService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
 
-import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@AutoConfigureMockMvc
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@AutoConfigureWebTestClient
 @ActiveProfiles("test")
 @Import(TestOllamaConfig.class)
 @EmbeddedKafka(partitions = 1, topics = {"chat_requests", "chat_responses"}, brokerProperties = {"listeners=PLAINTEXT://localhost:9092", "port=9092"})
 class ChatControllerIntegrationTests {
 
     @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    private WebTestClient webTestClient;
 
     @Autowired
     private DocumentRepository documentRepository;
@@ -87,7 +79,7 @@ class ChatControllerIntegrationTests {
     }
 
     @Test
-    void shouldSendMessageSuccessfully() throws Exception {
+    void shouldSendMessageSuccessfully() {
         ChatMessageRequestDTO requestDTO = ChatMessageRequestDTO.builder()
                 .model("llama2")
                 .prompt("What is this document about?")
@@ -105,48 +97,58 @@ class ChatControllerIntegrationTests {
         when(chatProducerService.processMessage(any(ChatMessageRequestDTO.class), eq(testDocument.getId())))
                 .thenReturn(CompletableFuture.completedFuture(expectedResponse));
 
-        mockMvc.perform(post("/chat/{documentId}", testDocument.getId())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(requestDTO)))
-                .andExpect(status().isOk())
-                .andDo(result -> System.out.println("Response: " + result.getResponse().getContentAsString()))
-                .andExpect(jsonPath("$.documentId", is(testDocument.getId().intValue())))
-                .andExpect(jsonPath("$.chatSessionId", is(testChatSession.getId().intValue())))
-                .andExpect(jsonPath("$.author", is(Author.MODEL.name())))
-                .andExpect(jsonPath("$.response", is("This document discusses testing strategies for Spring Boot applications.")))
-                .andExpect(jsonPath("$.createdAt").exists());
+        webTestClient.post()
+                .uri("/chat/{documentId}", testDocument.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestDTO)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(ChatMessageResponseDTO.class)
+                .consumeWith(response -> {
+                    ChatMessageResponseDTO body = response.getResponseBody();
+                    assert body != null;
+                    assert body.documentId().equals(testDocument.getId());
+                    assert body.chatSessionId().equals(testChatSession.getId());
+                    assert body.author().equals(Author.MODEL);
+                    assert body.response().equals("This document discusses testing strategies for Spring Boot applications.");
+                    assert body.createdAt() != null;
+                });
     }
 
     @Test
-    void shouldReturnBadRequestWhenPromptIsBlank() throws Exception {
+    void shouldReturnBadRequestWhenPromptIsBlank() {
         ChatMessageRequestDTO requestDTO = ChatMessageRequestDTO.builder()
                 .model("llama2")
                 .prompt("")
                 .stream(false)
                 .build();
 
-        mockMvc.perform(post("/chat/{documentId}", testDocument.getId())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(requestDTO)))
-                .andExpect(status().isBadRequest());
+        webTestClient.post()
+                .uri("/chat/{documentId}", testDocument.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestDTO)
+                .exchange()
+                .expectStatus().isBadRequest();
     }
 
     @Test
-    void shouldReturnBadRequestWhenPromptIsNull() throws Exception {
+    void shouldReturnBadRequestWhenPromptIsNull() {
         ChatMessageRequestDTO requestDTO = ChatMessageRequestDTO.builder()
                 .model("llama2")
                 .prompt(null)
                 .stream(false)
                 .build();
 
-        mockMvc.perform(post("/chat/{documentId}", testDocument.getId())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(requestDTO)))
-                .andExpect(status().isBadRequest());
+        webTestClient.post()
+                .uri("/chat/{documentId}", testDocument.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestDTO)
+                .exchange()
+                .expectStatus().isBadRequest();
     }
 
     @Test
-    void shouldSendMessageWithDifferentModel() throws Exception {
+    void shouldSendMessageWithDifferentModel() {
         ChatMessageRequestDTO requestDTO = ChatMessageRequestDTO.builder()
                 .model("mistral")
                 .prompt("Summarize this document")
@@ -164,17 +166,24 @@ class ChatControllerIntegrationTests {
         when(chatProducerService.processMessage(any(ChatMessageRequestDTO.class), eq(testDocument.getId())))
                 .thenReturn(CompletableFuture.completedFuture(expectedResponse));
 
-        mockMvc.perform(post("/chat/{documentId}", testDocument.getId())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(requestDTO)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.documentId", is(testDocument.getId().intValue())))
-                .andExpect(jsonPath("$.author", is(Author.MODEL.name())))
-                .andExpect(jsonPath("$.response", is("The document provides an overview of integration testing.")));
+        webTestClient.post()
+                .uri("/chat/{documentId}", testDocument.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestDTO)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(ChatMessageResponseDTO.class)
+                .consumeWith(response -> {
+                    ChatMessageResponseDTO body = response.getResponseBody();
+                    assert body != null;
+                    assert body.documentId().equals(testDocument.getId());
+                    assert body.author().equals(Author.MODEL);
+                    assert body.response().equals("The document provides an overview of integration testing.");
+                });
     }
 
     @Test
-    void shouldSendMessageWithLongPrompt() throws Exception {
+    void shouldSendMessageWithLongPrompt() {
         String longPrompt = "Can you provide a detailed analysis of the document including " +
                 "its main points, key takeaways, and recommendations? " +
                 "Please be as thorough as possible in your response.";
@@ -196,15 +205,22 @@ class ChatControllerIntegrationTests {
         when(chatProducerService.processMessage(any(ChatMessageRequestDTO.class), eq(testDocument.getId())))
                 .thenReturn(CompletableFuture.completedFuture(expectedResponse));
 
-        mockMvc.perform(post("/chat/{documentId}", testDocument.getId())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(requestDTO)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.response", is("Here is a detailed analysis of the document...")));
+        webTestClient.post()
+                .uri("/chat/{documentId}", testDocument.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestDTO)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(ChatMessageResponseDTO.class)
+                .consumeWith(response -> {
+                    ChatMessageResponseDTO body = response.getResponseBody();
+                    assert body != null;
+                    assert body.response().equals("Here is a detailed analysis of the document...");
+                });
     }
 
     @Test
-    void shouldHandleMultipleMessagesToSameDocument() throws Exception {
+    void shouldHandleMultipleMessagesToSameDocument() {
         ChatMessageRequestDTO firstRequest = ChatMessageRequestDTO.builder()
                 .model("llama2")
                 .prompt("What is this document about?")
@@ -222,11 +238,18 @@ class ChatControllerIntegrationTests {
         when(chatProducerService.processMessage(any(ChatMessageRequestDTO.class), eq(testDocument.getId())))
                 .thenReturn(CompletableFuture.completedFuture(firstResponse));
 
-        mockMvc.perform(post("/chat/{documentId}", testDocument.getId())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(firstRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.response", is("First response")));
+        webTestClient.post()
+                .uri("/chat/{documentId}", testDocument.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(firstRequest)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(ChatMessageResponseDTO.class)
+                .consumeWith(response -> {
+                    ChatMessageResponseDTO body = response.getResponseBody();
+                    assert body != null;
+                    assert body.response().equals("First response");
+                });
 
         ChatMessageRequestDTO secondRequest = ChatMessageRequestDTO.builder()
                 .model("llama2")
@@ -245,10 +268,17 @@ class ChatControllerIntegrationTests {
         when(chatProducerService.processMessage(any(ChatMessageRequestDTO.class), eq(testDocument.getId())))
                 .thenReturn(CompletableFuture.completedFuture(secondResponse));
 
-        mockMvc.perform(post("/chat/{documentId}", testDocument.getId())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(secondRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.response", is("Second response with more details")));
+        webTestClient.post()
+                .uri("/chat/{documentId}", testDocument.getId())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(secondRequest)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(ChatMessageResponseDTO.class)
+                .consumeWith(response -> {
+                    ChatMessageResponseDTO body = response.getResponseBody();
+                    assert body != null;
+                    assert body.response().equals("Second response with more details");
+                });
     }
 }
