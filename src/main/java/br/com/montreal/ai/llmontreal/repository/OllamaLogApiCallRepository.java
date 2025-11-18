@@ -13,7 +13,7 @@ public interface OllamaLogApiCallRepository extends JpaRepository<OllamaLogApiCa
 
     @Modifying
     @Query("UPDATE OllamaLogApiCall log " +
-            "SET log.jobStatusCode = :jobStatus, log.jobLatencyMs = :jobLatency, log.jobErrorMessage = :errorMsg" +
+            "SET log.jobStatusCode = :jobStatus, log.jobLatencyMs = :jobLatency, log.jobErrorMessage = :errorMsg " +
             "WHERE log.correlationId = :correlationId")
     void updateJobStatus(@Param("correlationId") String correlationId,
                          @Param("jobLatency") long jobLatency,
@@ -21,8 +21,8 @@ public interface OllamaLogApiCallRepository extends JpaRepository<OllamaLogApiCa
                          @Param("errorMsg") String errorMsg);
 
     @Modifying
-    @Query("UPDATE OllamaLogApiCall log" +
-            "SET log.statusCode = :apiStatus, log.latencyMs = :apiLatency" +
+    @Query("UPDATE OllamaLogApiCall log " +
+            "SET log.statusCode = :apiStatus, log.latencyMs = :apiLatency " +
             "WHERE log.correlationId = :correlationId")
     void updateApiStatus(@Param("correlationId") String correlationId,
                          @Param("apiLatency") long apiLatency,
