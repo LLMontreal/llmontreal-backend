@@ -3,6 +3,7 @@ package br.com.montreal.ai.llmontreal.controller;
 import br.com.montreal.ai.llmontreal.dto.OllamaRequestDTO;
 import br.com.montreal.ai.llmontreal.dto.ChatMessageResponseDTO;
 import br.com.montreal.ai.llmontreal.service.ollama.OllamaProducerService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
@@ -20,9 +21,12 @@ public class ChatController {
     @PostMapping("/{documentId}")
     public Mono<ChatMessageResponseDTO> sendMessageToOllama(
             @RequestBody @Valid OllamaRequestDTO requestDTO,
-            @PathVariable Long documentId
+            @PathVariable Long documentId,
+            HttpServletRequest request
     ) {
-        CompletableFuture<ChatMessageResponseDTO> responseFuture = ollamaProducerService.processMessage(requestDTO, documentId);
+        String correlationId = (String) request.getAttribute("requestId");
+        CompletableFuture<ChatMessageResponseDTO> responseFuture =
+                ollamaProducerService.sendChatRequest(requestDTO, documentId, correlationId);
         return Mono.fromFuture(responseFuture);
     }
 }

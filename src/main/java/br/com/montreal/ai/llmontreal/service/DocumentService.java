@@ -55,7 +55,7 @@ public class DocumentService {
         return documentRepository.findAllByStatus(pageable, status);
     }
 
-    public DocumentUploadResponse uploadFile(MultipartFile file) {
+    public DocumentUploadResponse uploadFile(MultipartFile file, String correlationId) {
         validateFile(file);
 
         try {
@@ -74,7 +74,7 @@ public class DocumentService {
             log.info("Arquivo carregado com sucesso: {} (ID: {})", 
                     savedDocument.getFileName(), savedDocument.getId());
 
-            extractionService.extractContentAsync(savedDocument.getId());
+            extractionService.extractContentAsync(savedDocument.getId(), correlationId);
             log.info("Extração assíncrona iniciada para documento ID: {}", savedDocument.getId());
             
             return new DocumentUploadResponse(savedDocument);
