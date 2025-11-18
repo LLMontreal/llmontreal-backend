@@ -25,7 +25,7 @@ public class TikaContentExtractor implements ContentExtractor {
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "text/plain",
-            "application/zip"
+            "application/msword"
     );
 
     private final Parser parser;
