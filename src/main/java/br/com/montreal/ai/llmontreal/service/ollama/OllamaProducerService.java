@@ -19,7 +19,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 @Service
@@ -36,7 +35,11 @@ public class OllamaProducerService {
 
     private static final Logger log = LoggerFactory.getLogger(OllamaProducerService.class);
 
-    public CompletableFuture<ChatMessageResponseDTO> processMessage(OllamaRequestDTO requestDTO, Long documentId) {
+    public CompletableFuture<ChatMessageResponseDTO> processMessage(
+            OllamaRequestDTO requestDTO,
+            Long documentId,
+            String correlationId
+    ) {
         Document doc = documentRepository.findById(documentId)
                 .orElseThrow(() -> new EntityNotFoundException("Document not found by id: " + documentId));
 
@@ -44,7 +47,6 @@ public class OllamaProducerService {
 
         chatService.addMessageToContext(currentSession.getId(), requestDTO.prompt(), Author.USER);
 
-        String correlationId = UUID.randomUUID().toString();
         KafkaChatRequestDTO kafkaChatRequestDTO = KafkaChatRequestDTO.builder()
                 .correlationId(correlationId)
                 .chatSessionId(currentSession.getId())
@@ -60,7 +62,7 @@ public class OllamaProducerService {
         return future;
     }
 
-    public CompletableFuture<KafkaSummaryResponseDTO> sendSummarizeRequest(Document document) {
+    public CompletableFuture<KafkaSummaryResponseDTO> sendSummarizeRequest(Document document, String correlationId) {
         Document doc = documentRepository.findById(document.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Document not found by id: " + document.getId()));
 
@@ -70,7 +72,6 @@ public class OllamaProducerService {
             throw new SummarizeException("Content must not be empty or blank");
         }
 
-        String correlationId = UUID.randomUUID().toString();
         KafkaSummaryRequestDTO kafkaSummaryRequestDTO = KafkaSummaryRequestDTO.builder()
                 .correlationId(correlationId)
                 .documentId(doc.getId())
