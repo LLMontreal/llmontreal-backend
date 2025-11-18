@@ -67,7 +67,7 @@ public class OllamaConsumerService {
 
     private static final Logger log = LoggerFactory.getLogger(OllamaConsumerService.class);
 
-    @KafkaListener(topics = KafkaTopicConfig.CHAT_REQUEST_TOPIC, groupId = "ollama-processors-group")
+    @KafkaListener(topics = KafkaTopicConfig.CHAT_REQUEST_TOPIC, groupId = "chat-processors-group")
     public void sendChatMessage(KafkaChatRequestDTO kafkaChatRequestDTO) {
         String correlationId = kafkaChatRequestDTO.correlationId();
         Long sessionId = kafkaChatRequestDTO.chatSessionId();
@@ -89,7 +89,7 @@ public class OllamaConsumerService {
         );
     }
 
-    @KafkaListener(topics = KafkaTopicConfig.SUMMARY_REQUEST_TOPIC, groupId = "ollama-processors-group")
+    @KafkaListener(topics = KafkaTopicConfig.SUMMARY_REQUEST_TOPIC, groupId = "summary-processors-group")
     public void summarizeDocumentContent(KafkaSummaryRequestDTO requestDTO) {
         String correlationId = requestDTO.correlationId();
         Long documentId = requestDTO.documentId();
