@@ -30,9 +30,17 @@ public class OllamaWarmup {
     @Value("${spring.ai.ollama.base-url}")
     private String ollamaApiUrl;
 
+    @Value("${ollama.warmup.enabled:true}")
+    private boolean warmupEnabled;
+
 
     @EventListener(ApplicationReadyEvent.class)
     public void warmUpModel() {
+        if (!warmupEnabled) {
+            logger.info("Ollama warmup is disabled. Skipping warmup for model: {}", defaultModel);
+            return;
+        }
+
         logger.info("Warming up Ollama model: {}", defaultModel);
 
         try {
