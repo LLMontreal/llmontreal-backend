@@ -1,6 +1,7 @@
 package br.com.montreal.ai.llmontreal.service.extraction;
 
 import br.com.montreal.ai.llmontreal.exception.ExtractionException;
+import net.sourceforge.tess4j.TesseractException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,7 +24,7 @@ class TesseractContentExtractorTest {
     private TesseractContentExtractor extractor;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws TesseractException {
         extractor = new TesseractContentExtractor(
                 "",
                 "eng", // apenas inglês para testes mais rápidos

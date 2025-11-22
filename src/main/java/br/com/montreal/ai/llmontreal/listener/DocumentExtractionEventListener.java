@@ -26,8 +26,7 @@ public class DocumentExtractionEventListener {
 
         Document document = documentRepository.findById(event.getDocumentId())
                 .orElseThrow(() -> new EntityNotFoundException(
-                        "Document not found with id: " + event.getDocumentId()
-                ));
+                        "Document not found with id: " + event.getDocumentId()));
 
         try {
             if (event.isSuccess()) {
@@ -47,6 +46,7 @@ public class DocumentExtractionEventListener {
                         document.getFileName(),
                         event.getErrorMessage());
             }
+
             documentRepository.save(document);
 
             log.debug("Document {} status updated to {}", event.getDocumentId(), document.getStatus());

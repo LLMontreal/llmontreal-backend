@@ -1,5 +1,6 @@
 package br.com.montreal.ai.llmontreal.controller;
 
+import br.com.montreal.ai.llmontreal.config.TestOllamaConfig;
 import br.com.montreal.ai.llmontreal.entity.Document;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
@@ -10,6 +11,10 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.kafka.test.context.EmbeddedKafka;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -17,13 +22,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.hamcrest.Matchers.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Import(TestOllamaConfig.class)
+@EmbeddedKafka(partitions = 1, topics = {"chat_requests", "chat_responses"}, brokerProperties = {"listeners=PLAINTEXT://localhost:9092", "port=9092"})
 class DocumentControllerIntegrationTests {
 
     @Autowired
@@ -145,5 +152,91 @@ class DocumentControllerIntegrationTests {
                 .andExpect(jsonPath("$.errorMessage",
                         containsString("Invalid value 'INVALID_STATUS' for 'status' param")))
                 .andExpect(jsonPath("$.path", is("/documents")));
+    }
+
+    @Test
+    void shouldUploadFileSuccessfully() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "test-document.pdf",
+                MediaType.APPLICATION_PDF_VALUE,
+                "test file content".getBytes()
+        );
+
+        mockMvc.perform(multipart("/documents")
+                        .file(file))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.fileName", is("test-document.pdf")))
+                .andExpect(jsonPath("$.fileType", is(MediaType.APPLICATION_PDF_VALUE)))
+                .andExpect(jsonPath("$.status", is(DocumentStatus.PENDING.name())))
+                .andExpect(jsonPath("$.uploadedAt").exists())
+                .andExpect(jsonPath("$.message", is("Documento enviado com sucesso e aguardando processamento")));
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenFileIsNull() throws Exception {
+        mockMvc.perform(multipart("/documents"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldUploadImageFileSuccessfully() throws Exception {
+        MockMultipartFile imageFile = new MockMultipartFile(
+                "file",
+                "test-image.png",
+                MediaType.IMAGE_PNG_VALUE,
+                "fake image content".getBytes()
+        );
+
+        mockMvc.perform(multipart("/documents")
+                        .file(imageFile))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.fileName", is("test-image.png")))
+                .andExpect(jsonPath("$.fileType", is(MediaType.IMAGE_PNG_VALUE)))
+                .andExpect(jsonPath("$.status", is(DocumentStatus.PENDING.name())));
+    }
+
+    @Test
+    void shouldGetExtractedContentSuccessfully() throws Exception {
+        Document document = Document.builder()
+                .fileName("doc-with-content.pdf")
+                .status(DocumentStatus.COMPLETED)
+                .createdAt(LocalDateTime.now())
+                .fileType("application/pdf")
+                .fileData("test content".getBytes())
+                .extractedContent("This is the extracted content from the document")
+                .build();
+
+        Document savedDocument = documentRepository.saveAndFlush(document);
+
+        mockMvc.perform(get("/documents/{id}/content", savedDocument.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", is("This is the extracted content from the document")));
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenDocumentDoesNotExist() throws Exception {
+        Long nonExistentId = 99999L;
+
+        mockMvc.perform(get("/documents/{id}/content", nonExistentId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenExtractedContentIsNull() throws Exception {
+        Document documentWithoutContent = Document.builder()
+                .fileName("doc-without-content.pdf")
+                .status(DocumentStatus.PENDING)
+                .createdAt(LocalDateTime.now())
+                .fileType("application/pdf")
+                .fileData("test content".getBytes())
+                .extractedContent(null)
+                .build();
+
+        Document savedDocument = documentRepository.saveAndFlush(documentWithoutContent);
+
+        mockMvc.perform(get("/documents/{id}/content", savedDocument.getId()))
+                .andExpect(status().isNotFound());
     }
 }

@@ -6,6 +6,7 @@ import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.exception.FileUploadException;
 import br.com.montreal.ai.llmontreal.exception.FileValidationException;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -20,24 +21,23 @@ import java.util.Optional;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
     private final DocumentExtractionService extractionService;
+    private final ZipProcessingService zipProcessingService;
+
     private static final long MAX_FILE_SIZE = 25L * 1024 * 1024;
+    private static final String ZIP_CONTENT_TYPE = "application/zip";
     private static final List<String> ALLOWED_CONTENT_TYPES = Arrays.asList(
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "image/jpeg",
             "image/png",
-            "application/zip",
+            ZIP_CONTENT_TYPE,
             "text/plain"
     );
-
-    public DocumentService(DocumentRepository documentRepository, DocumentExtractionService extractionService) {
-        this.documentRepository = documentRepository;
-        this.extractionService = extractionService;
-    }
 
     public Page<Document> getAllDocuments(Pageable pageable, DocumentStatus documentStatus) {
         if (documentStatus == null) {
@@ -60,31 +60,59 @@ public class DocumentService {
 
         try {
             byte[] fileData = file.getBytes();
+            String contentType = file.getContentType();
+            String fileName = file.getOriginalFilename();
 
-            Document document = Document.builder()
-                    .fileName(file.getOriginalFilename())
-                    .fileType(file.getContentType())
-                    .fileData(fileData)
-                    .status(DocumentStatus.PENDING)
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
-                    .build();
+            if (ZIP_CONTENT_TYPE.equalsIgnoreCase(contentType)) {
+                return processZipFile(fileData, fileName, correlationId);
+            }
 
-            Document savedDocument = documentRepository.save(document);
-            log.info("Arquivo carregado com sucesso: {} (ID: {})", 
-                    savedDocument.getFileName(), savedDocument.getId());
+            return processSingleFile(fileName, contentType, fileData, correlationId);
 
-            extractionService.extractContentAsync(savedDocument.getId(), correlationId);
-            log.info("Extração assíncrona iniciada para documento ID: {}", savedDocument.getId());
-            
-            return new DocumentUploadResponse(savedDocument);
-            
         } catch (IOException e) {
             String errorMessage = String.format(
                     "Erro ao ler o conteúdo do arquivo: %s", file.getOriginalFilename());
             log.error(errorMessage, e);
             throw new FileUploadException(errorMessage, e);
         }
+    }
+
+    private DocumentUploadResponse processZipFile(byte[] zipData, String fileName, String correlationId) {
+        log.info("Processing ZIP file: {}", fileName);
+
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, fileName, correlationId);
+
+        if (documentIds.isEmpty()) {
+            log.warn("No valid documents found in ZIP: {}", fileName);
+            throw new FileUploadException("Nenhum arquivo válido encontrado no ZIP");
+        }
+
+        log.info("ZIP processed successfully: {} - Created {} documents", fileName, documentIds.size());
+
+        Document firstDocument = documentRepository.findById(documentIds.get(0))
+                .orElseThrow(() -> new FileUploadException("Documento criado não encontrado"));
+
+        return new DocumentUploadResponse(firstDocument, documentIds.size(), documentIds);
+    }
+
+    private DocumentUploadResponse processSingleFile(String fileName, String contentType, byte[] fileData, String correlationId) {
+        Document document = Document.builder()
+                .fileName(fileName)
+                .fileType(contentType)
+                .fileData(fileData)
+                .status(DocumentStatus.PENDING)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        Document savedDocument = documentRepository.save(document);
+        log.info("Arquivo carregado com sucesso: {} (ID: {})",
+                savedDocument.getFileName(), savedDocument.getId());
+
+        extractionService.extractContentAsync(savedDocument.getId(), correlationId);
+        log.info("Extração assíncrona iniciada para documento ID: {}", savedDocument.getId());
+
+        return new DocumentUploadResponse(savedDocument);
     }
 
     private void validateFile(MultipartFile file) {
