@@ -20,6 +20,7 @@ public class AsyncConfig implements AsyncConfigurer {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(5);
+        executor.setKeepAliveSeconds(45);
         executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("doc-extraction-");
         executor.setWaitForTasksToCompleteOnShutdown(true);
