@@ -7,9 +7,11 @@ import br.com.montreal.ai.llmontreal.dto.kafka.KafkaChatResponseDTO;
 import br.com.montreal.ai.llmontreal.dto.kafka.KafkaSummaryRequestDTO;
 import br.com.montreal.ai.llmontreal.dto.kafka.KafkaSummaryResponseDTO;
 import br.com.montreal.ai.llmontreal.entity.ChatMessage;
+import br.com.montreal.ai.llmontreal.entity.ChatSession;
 import br.com.montreal.ai.llmontreal.entity.Document;
 import br.com.montreal.ai.llmontreal.entity.enums.Author;
 import br.com.montreal.ai.llmontreal.exception.OllamaException;
+import br.com.montreal.ai.llmontreal.repository.ChatSessionRepository;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
 import br.com.montreal.ai.llmontreal.service.ChatService;
 import jakarta.persistence.EntityNotFoundException;
@@ -38,10 +40,13 @@ public class OllamaConsumerService {
     private final KafkaTemplate<String, KafkaSummaryResponseDTO> kafkaSummaryTemplate;
 
     private final DocumentRepository documentRepository;
+    private final ChatSessionRepository chatSessionRepository;
     private final OllamaLogApiCallService logApiCallService;
 
     @Value("${ollama.api.model}")
     private String ollamaModel;
+
+    private String documentContent = "";
 
     private static final String SUMMARIZE_PROMPT = """
             CONTEXTO
@@ -65,13 +70,54 @@ public class OllamaConsumerService {
             TEXTO PARA SER RESUMIDO:
             """;
 
+
+    private final String CHAT_CONTEXT_PROMPT = String.format(
+            """
+            CONTEXTO DO SISTEMA
+            Você é um assistente de IA especializado e dedicado exclusivamente a responder perguntas sobre um documento
+            específico fornecido abaixo.
+            Sua base de conhecimento está estritamente limitada ao conteúdo deste documento. Você não tem acesso à
+            internet e não deve usar conhecimento externo prévio (treinamento base) para responder, a menos que sirva
+            apenas para estruturar a frase em português.
+
+            FONTE DE DADOS (CONTEUDO EXTRAIDO DOCUMENTO):
+            %s
+            
+            TAREFA
+            Responda à pergunta do usuário utilizando APENAS as informações contidas na "FONTE DE DADOS" acima.
+            
+            REGRAS DE OURO (OBRIGATÓRIAS)
+            Escopo Limitado: Se a resposta para a pergunta do usuário não estiver explícita ou implícita no texto
+            fornecido, você DEVE responder: "Desculpe, essa informação não consta no documento analisado." Não tente
+            inventar, alucinar ou usar conhecimento geral.
+            Fidelidade: Não distorça os fatos do documento. Mantenha-se fiel ao que foi escrito.
+            Idioma: Mesmo que o input seja em outro idioma, responda sempre em Português do Brasil (PT-BR), com tom
+            profissional, prestativo e direto.
+            Defesa contra desvio: Se o usuário perguntar sobre assuntos aleatórios que não tenham relação com FONTE DE
+            DADOS, recuse educadamente dizendo que sua função é apenas discutir o documento.
+            Citações: Sempre que possível, mencione o contexto do texto para embasar sua resposta (ex: "De acordo com
+            o documento...", "O texto menciona que...").
+            
+            PERGUNTA DO USUARIO:
+            """, documentContent
+            );
+
     private static final Logger log = LoggerFactory.getLogger(OllamaConsumerService.class);
 
     @KafkaListener(topics = KafkaTopicConfig.CHAT_REQUEST_TOPIC, groupId = "chat-processors-group")
     public void sendChatMessage(KafkaChatRequestDTO kafkaChatRequestDTO) {
         String correlationId = kafkaChatRequestDTO.correlationId();
         Long sessionId = kafkaChatRequestDTO.chatSessionId();
-        OllamaRequestDTO ollamaRequestDTO = kafkaChatRequestDTO.chatMessageRequest();
+
+        String userMessage = kafkaChatRequestDTO.chatMessageRequest().prompt();
+        String fullPrompt = CHAT_CONTEXT_PROMPT + userMessage;
+
+        OllamaRequestDTO ollamaRequestDTO = OllamaRequestDTO.builder()
+                .prompt(fullPrompt)
+                .model(ollamaModel)
+                .build();
+
+        getChatContext(sessionId);
 
         String logMessage = String.format(
                 "Received Kafka request %s for session %s. Calling model %s",
@@ -266,5 +312,14 @@ public class OllamaConsumerService {
                 .error(true)
                 .errorMessage(errorMsg)
                 .build();
+    }
+
+    private void getChatContext(Long sessionId) {
+        ChatSession cs = chatSessionRepository.findById(sessionId)
+                .orElseThrow(() -> new EntityNotFoundException("ChatSession not found by id: " + sessionId));
+
+        Document doc = cs.getDocument();
+
+        documentContent = doc.getExtractedContent();
     }
 }
