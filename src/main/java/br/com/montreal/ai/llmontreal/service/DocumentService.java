@@ -64,7 +64,7 @@ public class DocumentService {
             String fileName = file.getOriginalFilename();
 
             if (ZIP_CONTENT_TYPE.equalsIgnoreCase(contentType)) {
-                return processZipFile(fileData, fileName);
+                return processZipFile(fileData, fileName, correlationId);
             }
 
             return processSingleFile(fileName, contentType, fileData, correlationId);
@@ -77,10 +77,10 @@ public class DocumentService {
         }
     }
 
-    private DocumentUploadResponse processZipFile(byte[] zipData, String fileName) {
+    private DocumentUploadResponse processZipFile(byte[] zipData, String fileName, String correlationId) {
         log.info("Processing ZIP file: {}", fileName);
 
-        List<Long> documentIds = zipProcessingService.processZipFile(zipData, fileName);
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, fileName, correlationId);
 
         if (documentIds.isEmpty()) {
             log.warn("No valid documents found in ZIP: {}", fileName);
