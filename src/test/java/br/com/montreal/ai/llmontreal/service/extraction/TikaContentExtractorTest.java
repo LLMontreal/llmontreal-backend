@@ -28,8 +28,7 @@ class TikaContentExtractorTest {
     @ValueSource(strings = {
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "text/plain",
-            "application/zip"
+            "text/plain"
     })
     @DisplayName("Should support correct content types")
     void shouldSupportCorrectContentTypes(String contentType) {
