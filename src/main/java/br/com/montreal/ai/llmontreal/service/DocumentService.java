@@ -1,17 +1,21 @@
 package br.com.montreal.ai.llmontreal.service;
 
+import br.com.montreal.ai.llmontreal.config.KafkaTopicConfig;
 import br.com.montreal.ai.llmontreal.dto.DocumentUploadResponse;
+import br.com.montreal.ai.llmontreal.dto.kafka.KafkaSummaryRequestDTO;
 import br.com.montreal.ai.llmontreal.entity.Document;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.exception.FileUploadException;
 import br.com.montreal.ai.llmontreal.exception.FileValidationException;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.kafka.core.KafkaTemplate;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -27,6 +31,7 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final DocumentExtractionService extractionService;
     private final ZipProcessingService zipProcessingService;
+    private final KafkaTemplate<String, KafkaSummaryRequestDTO> kafkaSummaryTemplate;
 
     private static final long MAX_FILE_SIZE = 25L * 1024 * 1024;
     private static final String ZIP_CONTENT_TYPE = "application/zip";
@@ -36,8 +41,7 @@ public class DocumentService {
             "image/jpeg",
             "image/png",
             ZIP_CONTENT_TYPE,
-            "text/plain"
-    );
+            "text/plain");
 
     public Page<Document> getAllDocuments(Pageable pageable, DocumentStatus documentStatus) {
         if (documentStatus == null) {
@@ -95,7 +99,8 @@ public class DocumentService {
         return new DocumentUploadResponse(firstDocument, documentIds.size(), documentIds);
     }
 
-    private DocumentUploadResponse processSingleFile(String fileName, String contentType, byte[] fileData, String correlationId) {
+    private DocumentUploadResponse processSingleFile(String fileName, String contentType, byte[] fileData,
+            String correlationId) {
         Document document = Document.builder()
                 .fileName(fileName)
                 .fileType(contentType)
@@ -128,16 +133,14 @@ public class DocumentService {
         if (file.getSize() > MAX_FILE_SIZE) {
             throw new FileValidationException(
                     String.format("O arquivo excede o tamanho máximo permitido de %d MB",
-                            MAX_FILE_SIZE / (1024 * 1024))
-            );
+                            MAX_FILE_SIZE / (1024 * 1024)));
         }
 
         String contentType = file.getContentType();
         if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
             throw new FileValidationException(
                     String.format("Tipo de arquivo não suportado: %s. Tipos aceitos: %s",
-                            contentType, String.join(", ", ALLOWED_CONTENT_TYPES))
-            );
+                            contentType, String.join(", ", ALLOWED_CONTENT_TYPES)));
         }
 
         log.debug("Arquivo validado: {} - {} - {} bytes",
@@ -152,5 +155,26 @@ public class DocumentService {
     public Optional<String> getSummary(Long documentId) {
         return documentRepository.findById(documentId)
                 .map(Document::getSummary);
+    }
+
+    public void regenerateSummary(Long documentId, String correlationId) {
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new EntityNotFoundException("Documento não encontrado com id: " + documentId));
+        if (document.getExtractedContent() == null || document.getExtractedContent().isBlank()) {
+            throw new IllegalStateException(
+                    "O documento ainda não teve o conteúdo extraído. Aguarde a extração antes de regenerar o resumo.");
+        }
+        document.setSummary(null);
+        document.setStatus(DocumentStatus.PENDING);
+        document.setUpdatedAt(LocalDateTime.now());
+        documentRepository.save(document);
+
+        KafkaSummaryRequestDTO requestDTO = KafkaSummaryRequestDTO.builder()
+                .correlationId(correlationId)
+                .documentId(documentId)
+                .build();
+        kafkaSummaryTemplate.send(KafkaTopicConfig.SUMMARY_REQUEST_TOPIC, correlationId, requestDTO);
+        log.info("Regeneração de resumo solicitada para documento ID: {} com correlationId: {}", documentId,
+                correlationId);
     }
 }
