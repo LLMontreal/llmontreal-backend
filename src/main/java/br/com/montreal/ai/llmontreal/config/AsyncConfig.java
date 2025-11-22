@@ -39,4 +39,21 @@ public class AsyncConfig implements AsyncConfigurer {
                 -> log.error("Async execution error in method: {} with params {},",
                 method.getName(), objects, throwable);
     }
+
+    @Bean(name = "logApiCallExecutor")
+    public Executor logApiCallExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(5);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("log-api-call-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+
+        log.info("Log API call executor initialized: core={}, max={}, queue={}",
+                executor.getCorePoolSize(), executor.getMaxPoolSize(), executor.getQueueCapacity());
+
+        return executor;
+    }
 }

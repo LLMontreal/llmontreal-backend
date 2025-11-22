@@ -27,7 +27,7 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final DocumentExtractionService extractionService;
     private final ZipProcessingService zipProcessingService;
-    
+
     private static final long MAX_FILE_SIZE = 25L * 1024 * 1024;
     private static final String ZIP_CONTENT_TYPE = "application/zip";
     private static final List<String> ALLOWED_CONTENT_TYPES = Arrays.asList(
@@ -55,7 +55,7 @@ public class DocumentService {
         return documentRepository.findAllByStatus(pageable, status);
     }
 
-    public DocumentUploadResponse uploadFile(MultipartFile file) {
+    public DocumentUploadResponse uploadFile(MultipartFile file, String correlationId) {
         validateFile(file);
 
         try {
@@ -64,11 +64,11 @@ public class DocumentService {
             String fileName = file.getOriginalFilename();
 
             if (ZIP_CONTENT_TYPE.equalsIgnoreCase(contentType)) {
-                return processZipFile(fileData, fileName);
+                return processZipFile(fileData, fileName, correlationId);
             }
 
-            return processSingleFile(fileName, contentType, fileData);
-            
+            return processSingleFile(fileName, contentType, fileData, correlationId);
+
         } catch (IOException e) {
             String errorMessage = String.format(
                     "Erro ao ler o conteúdo do arquivo: %s", file.getOriginalFilename());
@@ -77,25 +77,25 @@ public class DocumentService {
         }
     }
 
-    private DocumentUploadResponse processZipFile(byte[] zipData, String fileName) {
+    private DocumentUploadResponse processZipFile(byte[] zipData, String fileName, String correlationId) {
         log.info("Processing ZIP file: {}", fileName);
-        
-        List<Long> documentIds = zipProcessingService.processZipFile(zipData, fileName);
-        
+
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, fileName, correlationId);
+
         if (documentIds.isEmpty()) {
             log.warn("No valid documents found in ZIP: {}", fileName);
             throw new FileUploadException("Nenhum arquivo válido encontrado no ZIP");
         }
 
         log.info("ZIP processed successfully: {} - Created {} documents", fileName, documentIds.size());
-        
+
         Document firstDocument = documentRepository.findById(documentIds.get(0))
                 .orElseThrow(() -> new FileUploadException("Documento criado não encontrado"));
-        
+
         return new DocumentUploadResponse(firstDocument, documentIds.size(), documentIds);
     }
 
-    private DocumentUploadResponse processSingleFile(String fileName, String contentType, byte[] fileData) {
+    private DocumentUploadResponse processSingleFile(String fileName, String contentType, byte[] fileData, String correlationId) {
         Document document = Document.builder()
                 .fileName(fileName)
                 .fileType(contentType)
@@ -106,12 +106,12 @@ public class DocumentService {
                 .build();
 
         Document savedDocument = documentRepository.save(document);
-        log.info("Arquivo carregado com sucesso: {} (ID: {})", 
+        log.info("Arquivo carregado com sucesso: {} (ID: {})",
                 savedDocument.getFileName(), savedDocument.getId());
 
-        extractionService.extractContentAsync(savedDocument.getId());
+        extractionService.extractContentAsync(savedDocument.getId(), correlationId);
         log.info("Extração assíncrona iniciada para documento ID: {}", savedDocument.getId());
-        
+
         return new DocumentUploadResponse(savedDocument);
     }
 

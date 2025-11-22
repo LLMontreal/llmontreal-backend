@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,7 +30,7 @@ public class DocumentExtractionService {
     private final OllamaProducerService ollamaProducerService;
 
     @Async("documentExtractionExecutor")
-    public void extractContentAsync(Long documentId) {
+    public void extractContentAsync(Long documentId, String correlationId) {
         log.info("Starting extraction of document with id {}", documentId);
         long startTime = System.currentTimeMillis();
 
@@ -72,7 +71,7 @@ public class DocumentExtractionService {
                     DocumentExtractionCompletedEvent.success(this, documentId, extractedContent)
             );
 
-            ollamaProducerService.sendSummarizeRequest(document);
+            ollamaProducerService.sendSummarizeRequest(document, correlationId);
         } catch (ExtractionException e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("Extraction failed for document {} after {}ms: {}", documentId, duration, e.getMessage());

@@ -31,7 +31,7 @@ public class ZipProcessingService {
     @Value("${file.upload.zip.max-entry-size:104857600}")
     private long maxEntrySize;
 
-    public List<Long> processZipFile(byte[] zipData, String originalZipFileName) {
+    public List<Long> processZipFile(byte[] zipData, String originalZipFileName, String correlationId) {
         List<Long> createdDocumentIds = new ArrayList<>();
         int[] stats = {0, 0, 0};
 
@@ -39,7 +39,7 @@ public class ZipProcessingService {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
                 try {
-                    processZipEntry(zis, entry, originalZipFileName, createdDocumentIds, stats);
+                    processZipEntry(zis, entry, originalZipFileName, createdDocumentIds, stats, correlationId);
                 } catch (Exception e) {
                     log.error("Error processing ZIP entry {}: {}", entry.getName(), e.getMessage());
                     stats[2]++;
@@ -60,7 +60,7 @@ public class ZipProcessingService {
     }
 
     private void processZipEntry(ZipInputStream zis, ZipEntry entry, String zipFileName,
-                                  List<Long> createdDocumentIds, int[] stats) throws Exception {
+                                  List<Long> createdDocumentIds, int[] stats, String correlationId) throws Exception {
         String entryName = entry.getName();
 
         if (shouldSkipEntry(entry, entryName)) {
@@ -90,7 +90,7 @@ public class ZipProcessingService {
         log.info("Created document from ZIP: {} (ID: {}, Type: {})", 
                 entryName, savedDocument.getId(), contentType);
 
-        extractionService.extractContentAsync(savedDocument.getId());
+        extractionService.extractContentAsync(savedDocument.getId(), correlationId);
         
         createdDocumentIds.add(savedDocument.getId());
         stats[0]++;

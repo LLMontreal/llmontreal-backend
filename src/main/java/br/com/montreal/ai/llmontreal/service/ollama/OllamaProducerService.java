@@ -19,8 +19,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.BiConsumer;
 
 @Service
 @RequiredArgsConstructor
@@ -36,7 +36,11 @@ public class OllamaProducerService {
 
     private static final Logger log = LoggerFactory.getLogger(OllamaProducerService.class);
 
-    public CompletableFuture<ChatMessageResponseDTO> processMessage(OllamaRequestDTO requestDTO, Long documentId) {
+    public CompletableFuture<ChatMessageResponseDTO> sendChatRequest(
+            OllamaRequestDTO requestDTO,
+            Long documentId,
+            String correlationId
+    ) {
         Document doc = documentRepository.findById(documentId)
                 .orElseThrow(() -> new EntityNotFoundException("Document not found by id: " + documentId));
 
@@ -44,23 +48,27 @@ public class OllamaProducerService {
 
         chatService.addMessageToContext(currentSession.getId(), requestDTO.prompt(), Author.USER);
 
-        String correlationId = UUID.randomUUID().toString();
+        String logMessage = String.format(
+                "Sending request %s to Kafka for Chat Session %s", correlationId, currentSession.getId()
+        );
+
         KafkaChatRequestDTO kafkaChatRequestDTO = KafkaChatRequestDTO.builder()
                 .correlationId(correlationId)
                 .chatSessionId(currentSession.getId())
                 .chatMessageRequest(requestDTO)
                 .build();
 
-        CompletableFuture<ChatMessageResponseDTO> future = new CompletableFuture<>();
-        pendingRequestsService.registerChat(correlationId, future);
-
-        log.info("Sending request {} to Kafka for Chat Session {}", correlationId, currentSession.getId());
-        kafkaChatTemplate.send(KafkaTopicConfig.CHAT_REQUEST_TOPIC, correlationId, kafkaChatRequestDTO);
-
-        return future;
+        return sendKafkaRequest(
+                correlationId,
+                KafkaTopicConfig.CHAT_REQUEST_TOPIC,
+                kafkaChatRequestDTO,
+                kafkaChatTemplate,
+                pendingRequestsService::registerChat,
+                logMessage
+        );
     }
 
-    public CompletableFuture<KafkaSummaryResponseDTO> sendSummarizeRequest(Document document) {
+    public CompletableFuture<KafkaSummaryResponseDTO> sendSummarizeRequest(Document document, String correlationId) {
         Document doc = documentRepository.findById(document.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Document not found by id: " + document.getId()));
 
@@ -70,18 +78,39 @@ public class OllamaProducerService {
             throw new SummarizeException("Content must not be empty or blank");
         }
 
-        String correlationId = UUID.randomUUID().toString();
         KafkaSummaryRequestDTO kafkaSummaryRequestDTO = KafkaSummaryRequestDTO.builder()
                 .correlationId(correlationId)
                 .documentId(doc.getId())
                 .build();
 
-        CompletableFuture<KafkaSummaryResponseDTO> future = new CompletableFuture<>();
-        pendingRequestsService.registerSummary(correlationId, future);
+        String logMessage = String.format(
+                "Sending request %s to Kafka to Summarize Document %s content", correlationId, doc.getId()
+        );
 
-        log.info("Sending request {} to Kafka to Summarize Document {} content", correlationId, doc.getId());
-        kafkaSummaryTemplate.send(KafkaTopicConfig.SUMMARY_REQUEST_TOPIC, correlationId, kafkaSummaryRequestDTO);
+        return sendKafkaRequest(
+                correlationId,
+                KafkaTopicConfig.SUMMARY_REQUEST_TOPIC,
+                kafkaSummaryRequestDTO,
+                kafkaSummaryTemplate,
+                pendingRequestsService::registerSummary,
+                logMessage
+        );
+    }
 
+    private <PayloadT, ResponseT> CompletableFuture<ResponseT> sendKafkaRequest(
+            String correlationId,
+            String topic,
+            PayloadT payload,
+            KafkaTemplate<String, PayloadT> template,
+            BiConsumer<String, CompletableFuture<ResponseT>> processFunction,
+            String logMessage
+    ) {
+        CompletableFuture<ResponseT> future = new CompletableFuture<>();
+        processFunction.accept(correlationId, future);
+
+        log.info(logMessage);
+
+        template.send(topic, correlationId, payload);
         return future;
     }
 }

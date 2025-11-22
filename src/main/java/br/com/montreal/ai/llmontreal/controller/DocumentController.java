@@ -4,6 +4,7 @@ import br.com.montreal.ai.llmontreal.dto.DocumentDTO;
 import br.com.montreal.ai.llmontreal.dto.DocumentUploadResponse;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.service.DocumentService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -34,9 +35,12 @@ public class DocumentController {
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<DocumentUploadResponse> uploadFile(@RequestParam("file") @NotNull MultipartFile file) {
-
-        DocumentUploadResponse response = documentService.uploadFile(file);
+    public ResponseEntity<DocumentUploadResponse> uploadFile(
+            @RequestParam("file") @NotNull MultipartFile file,
+            HttpServletRequest request
+    ) {
+        String correlationId = (String) request.getAttribute("requestId");
+        DocumentUploadResponse response = documentService.uploadFile(file, correlationId);
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
