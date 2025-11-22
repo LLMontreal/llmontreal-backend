@@ -109,6 +109,8 @@ public class OllamaConsumerService {
         String correlationId = kafkaChatRequestDTO.correlationId();
         Long sessionId = kafkaChatRequestDTO.chatSessionId();
 
+        getChatContext(sessionId);
+
         String userMessage = kafkaChatRequestDTO.chatMessageRequest().prompt();
         String fullPrompt = CHAT_CONTEXT_PROMPT + userMessage;
 
@@ -117,7 +119,6 @@ public class OllamaConsumerService {
                 .model(ollamaModel)
                 .build();
 
-        getChatContext(sessionId);
 
         String logMessage = String.format(
                 "Received Kafka request %s for session %s. Calling model %s",
