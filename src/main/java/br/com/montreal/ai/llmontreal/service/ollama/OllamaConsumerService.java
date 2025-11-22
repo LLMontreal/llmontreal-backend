@@ -46,8 +46,6 @@ public class OllamaConsumerService {
     @Value("${ollama.api.model}")
     private String ollamaModel;
 
-    private String documentContent = "";
-
     private static final String SUMMARIZE_PROMPT = """
             CONTEXTO
             Você é um assistente de IA especialista em comunicação e processamento de linguagem.
@@ -70,38 +68,6 @@ public class OllamaConsumerService {
             TEXTO PARA SER RESUMIDO:
             """;
 
-
-    private final String CHAT_CONTEXT_PROMPT = String.format(
-            """
-            CONTEXTO DO SISTEMA
-            Você é um assistente de IA especializado e dedicado exclusivamente a responder perguntas sobre um documento
-            específico fornecido abaixo.
-            Sua base de conhecimento está estritamente limitada ao conteúdo deste documento. Você não tem acesso à
-            internet e não deve usar conhecimento externo prévio (treinamento base) para responder, a menos que sirva
-            apenas para estruturar a frase em português.
-
-            FONTE DE DADOS (CONTEUDO EXTRAIDO DOCUMENTO):
-            %s
-            
-            TAREFA
-            Responda à pergunta do usuário utilizando APENAS as informações contidas na "FONTE DE DADOS" acima.
-            
-            REGRAS DE OURO (OBRIGATÓRIAS)
-            Escopo Limitado: Se a resposta para a pergunta do usuário não estiver explícita ou implícita no texto
-            fornecido, você DEVE responder: "Desculpe, essa informação não consta no documento analisado." Não tente
-            inventar, alucinar ou usar conhecimento geral.
-            Fidelidade: Não distorça os fatos do documento. Mantenha-se fiel ao que foi escrito.
-            Idioma: Mesmo que o input seja em outro idioma, responda sempre em Português do Brasil (PT-BR), com tom
-            profissional, prestativo e direto.
-            Defesa contra desvio: Se o usuário perguntar sobre assuntos aleatórios que não tenham relação com FONTE DE
-            DADOS, recuse educadamente dizendo que sua função é apenas discutir o documento.
-            Citações: Sempre que possível, mencione o contexto do texto para embasar sua resposta (ex: "De acordo com
-            o documento...", "O texto menciona que...").
-            
-            PERGUNTA DO USUARIO:
-            """, documentContent
-            );
-
     private static final Logger log = LoggerFactory.getLogger(OllamaConsumerService.class);
 
     @KafkaListener(topics = KafkaTopicConfig.CHAT_REQUEST_TOPIC, groupId = "chat-processors-group")
@@ -109,15 +75,15 @@ public class OllamaConsumerService {
         String correlationId = kafkaChatRequestDTO.correlationId();
         Long sessionId = kafkaChatRequestDTO.chatSessionId();
 
+        String chatContext = getChatContext(sessionId);
         String userMessage = kafkaChatRequestDTO.chatMessageRequest().prompt();
-        String fullPrompt = CHAT_CONTEXT_PROMPT + userMessage;
+        String fullPrompt = buildFullPrompt(chatContext,userMessage);
 
         OllamaRequestDTO ollamaRequestDTO = OllamaRequestDTO.builder()
                 .prompt(fullPrompt)
                 .model(ollamaModel)
                 .build();
 
-        getChatContext(sessionId);
 
         String logMessage = String.format(
                 "Received Kafka request %s for session %s. Calling model %s",
@@ -314,12 +280,37 @@ public class OllamaConsumerService {
                 .build();
     }
 
-    private void getChatContext(Long sessionId) {
+    private String buildFullPrompt(String context, String userMessage) {
+        return """
+            <system_role>
+            Você é um assistente de IA útil e prestativo.
+            Sua tarefa é responder perguntas baseadas ESTRITAMENTE no documento fornecido abaixo.
+            </system_role>
+
+            <rules>
+            1. Se a resposta não estiver no texto, diga: "Não encontrei essa informação no documento".
+            2. Não invente informações.
+            3. Responda sempre em Português do Brasil.
+            4. Seja direto e profissional.
+            </rules>
+
+            <document_context>
+            %s
+            </document_context>
+
+            <user_question>
+            %s
+            </user_question>
+            
+            RESPOSTA:
+            """.formatted(context, userMessage);
+    }
+
+    private String getChatContext(Long sessionId) {
         ChatSession cs = chatSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new EntityNotFoundException("ChatSession not found by id: " + sessionId));
 
         Document doc = cs.getDocument();
-
-        documentContent = doc.getExtractedContent();
+        return doc.getExtractedContent();
     }
 }
