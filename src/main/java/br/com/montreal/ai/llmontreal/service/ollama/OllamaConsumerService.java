@@ -158,7 +158,7 @@ public class OllamaConsumerService {
                 .body(Mono.just(ollamaRequestDTO), OllamaApiResponseDTO.class)
                 .retrieve()
                 .bodyToMono(OllamaApiResponseDTO.class)
-                .timeout(Duration.ofMinutes(2))
+                .timeout(Duration.ofMinutes(10))
                 .block();
 
         if (ollamaResponse == null) {

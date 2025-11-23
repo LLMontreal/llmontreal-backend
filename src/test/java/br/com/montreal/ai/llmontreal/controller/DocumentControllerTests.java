@@ -23,6 +23,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -143,13 +144,13 @@ class DocumentControllerTests {
 
         DocumentUploadResponse response = new DocumentUploadResponse(savedDoc);
 
-        when(documentService.uploadFile(any())).thenReturn(response);
+        when(documentService.uploadFile(any(MultipartFile.class), any(String.class))).thenReturn(response);
 
         mockMvc.perform(MockMvcRequestBuilders.multipart("/documents")
                         .file(file))
                 .andExpect(MockMvcResultMatchers.status().isCreated());
 
-        verify(documentService).uploadFile(any());
+        verify(documentService).uploadFile(any(MultipartFile.class), any(String.class));
     }
 
     @Test
@@ -161,7 +162,7 @@ class DocumentControllerTests {
                 "Text content".getBytes()
         );
 
-        when(documentService.uploadFile(any())).thenThrow(
+        when(documentService.uploadFile(any(MultipartFile.class), any(String.class))).thenThrow(
                 new FileValidationException("Tipo de arquivo não suportado: text/plain. Tipos aceitos: application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, image/jpeg, image/png, application/zip")
         );
 
@@ -170,11 +171,11 @@ class DocumentControllerTests {
                 .andExpect(MockMvcResultMatchers.status().isBadRequest())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.status", is(400)))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.error", is("File Validation Error")))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.errorMessage", 
+                .andExpect(MockMvcResultMatchers.jsonPath("$.errorMessage",
                         containsString("Tipo de arquivo não suportado")))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.path", is("/documents")));
 
-        verify(documentService).uploadFile(any());
+        verify(documentService).uploadFile(any(MultipartFile.class), any(String.class));
     }
 
     @Test
@@ -186,7 +187,7 @@ class DocumentControllerTests {
                 new byte[0]
         );
 
-        when(documentService.uploadFile(any())).thenThrow(
+        when(documentService.uploadFile(any(MultipartFile.class), any(String.class))).thenThrow(
                 new FileValidationException("O arquivo não pode ser nulo ou vazio")
         );
 
@@ -195,9 +196,9 @@ class DocumentControllerTests {
                 .andExpect(MockMvcResultMatchers.status().isBadRequest())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.status", is(400)))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.error", is("File Validation Error")))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.errorMessage", 
+                .andExpect(MockMvcResultMatchers.jsonPath("$.errorMessage",
                         is("O arquivo não pode ser nulo ou vazio")));
 
-        verify(documentService).uploadFile(any());
+        verify(documentService).uploadFile(any(MultipartFile.class), any(String.class));
     }
 }

@@ -47,6 +47,12 @@ class DocumentServiceTests {
     @Mock
     private DocumentExtractionService documentExtractionService;
 
+    @Mock
+    private ZipProcessingService zipProcessingService;
+
+    @Mock
+    private org.springframework.kafka.core.KafkaTemplate kafkaSummaryTemplate;
+
     @InjectMocks
     private DocumentService documentService;
 
@@ -151,9 +157,9 @@ class DocumentServiceTests {
     @DisplayName("Should upload document successfully")
     void shouldUploadDocumentSuccessfully() {
         when(documentRepository.save(any(Document.class))).thenReturn(savedDoc);
-        doNothing().when(documentExtractionService).extractContentAsync(any(Long.class));
+        doNothing().when(documentExtractionService).extractContentAsync(any(Long.class), any(String.class));
 
-        DocumentUploadResponse result = documentService.uploadFile(validFile);
+        DocumentUploadResponse result = documentService.uploadFile(validFile, "test-correlation-id");
 
         assertNotNull(result);
         assertEquals("documento-teste.pdf", result.fileName());
@@ -164,13 +170,13 @@ class DocumentServiceTests {
         assertEquals("Documento enviado com sucesso e aguardando processamento", result.message());
 
         verify(documentRepository).save(any(Document.class));
-        verify(documentExtractionService).extractContentAsync(savedDoc.getId());
+        verify(documentExtractionService).extractContentAsync(savedDoc.getId(), "test-correlation-id");
     }
 
     @Test
     @DisplayName("Should throw FileValidationException when file is null")
     void shouldThrowExceptionWhenFileIsNull() {
-        assertThatThrownBy(() -> documentService.uploadFile(null))
+        assertThatThrownBy(() -> documentService.uploadFile(null, "test-correlation-id"))
                 .isInstanceOf(FileValidationException.class)
                 .hasMessage("O arquivo não pode ser nulo ou vazio");
 
@@ -187,7 +193,7 @@ class DocumentServiceTests {
                 new byte[0]
         );
 
-        assertThatThrownBy(() -> documentService.uploadFile(emptyFile))
+        assertThatThrownBy(() -> documentService.uploadFile(emptyFile, "test-correlation-id"))
                 .isInstanceOf(FileValidationException.class)
                 .hasMessage("O arquivo não pode ser nulo ou vazio");
 
@@ -205,7 +211,7 @@ class DocumentServiceTests {
                 largeContent
         );
 
-        assertThatThrownBy(() -> documentService.uploadFile(largeFile))
+        assertThatThrownBy(() -> documentService.uploadFile(largeFile, "test-correlation-id"))
                 .isInstanceOf(FileValidationException.class)
                 .hasMessageContaining("excede o tamanho máximo permitido");
 
@@ -223,12 +229,12 @@ class DocumentServiceTests {
                 "Content".getBytes()
         );
 
-        assertThatThrownBy(() -> documentService.uploadFile(invalidFile))
+        assertThatThrownBy(() -> documentService.uploadFile(invalidFile, "test-correlation-id"))
                 .isInstanceOf(FileValidationException.class)
                 .hasMessageContaining("Tipo de arquivo não suportado");
 
         verify(documentRepository, never()).save(any(Document.class));
-        verify(documentExtractionService, never()).extractContentAsync(any(Long.class));
+        verify(documentExtractionService, never()).extractContentAsync(any(Long.class), any(String.class));
     }
 
     @Test
@@ -241,7 +247,7 @@ class DocumentServiceTests {
                 "Content".getBytes()
         );
 
-        assertThatThrownBy(() -> documentService.uploadFile(fileWithNoContentType))
+        assertThatThrownBy(() -> documentService.uploadFile(fileWithNoContentType, "test-correlation-id"))
                 .isInstanceOf(FileValidationException.class)
                 .hasMessageContaining("Tipo de arquivo não suportado");
 
@@ -260,7 +266,7 @@ class DocumentServiceTests {
                 "Content".getBytes()
         );
 
-        assertThatThrownBy(() -> documentService.uploadFile(fileWithInvalidName))
+        assertThatThrownBy(() -> documentService.uploadFile(fileWithInvalidName, "test-correlation-id"))
                 .isInstanceOf(FileValidationException.class)
                 .hasMessage("Nome do arquivo inválido");
 
@@ -277,7 +283,7 @@ class DocumentServiceTests {
         when(mockFile.getSize()).thenReturn(1024L);
         when(mockFile.getBytes()).thenThrow(new IOException("Erro ao ler arquivo"));
 
-        assertThatThrownBy(() -> documentService.uploadFile(mockFile))
+        assertThatThrownBy(() -> documentService.uploadFile(mockFile, "test-correlation-id"))
                 .isInstanceOf(FileUploadException.class)
                 .hasMessageContaining("Erro ao ler o conteúdo do arquivo")
                 .hasCauseInstanceOf(IOException.class);
@@ -287,7 +293,7 @@ class DocumentServiceTests {
 
     @ParameterizedTest
     @ValueSource(strings = {"application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "image/jpeg", "image/png", "application/zip"})
+            "image/jpeg", "image/png", "text/plain"})
     @DisplayName("Should accept all supported file types")
     void shouldAcceptAllSupportedFileTypes(String contentType) {
         byte[] fileContent = "Content".getBytes();
@@ -308,14 +314,14 @@ class DocumentServiceTests {
                 .build();
 
         when(documentRepository.save(any(Document.class))).thenReturn(doc);
-        doNothing().when(documentExtractionService).extractContentAsync(any(Long.class));
+        doNothing().when(documentExtractionService).extractContentAsync(any(Long.class), any(String.class));
 
-        DocumentUploadResponse result = documentService.uploadFile(file);
+        DocumentUploadResponse result = documentService.uploadFile(file, "test-correlation-id");
 
         assertNotNull(result);
         assertEquals(contentType, result.fileType());
         verify(documentRepository).save(any(Document.class));
-        verify(documentExtractionService).extractContentAsync(doc.getId());
+        verify(documentExtractionService).extractContentAsync(doc.getId(), "test-correlation-id");
     }
 
     private String getExtension(String contentType) {
@@ -324,7 +330,7 @@ class DocumentServiceTests {
             case "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "docx";
             case "image/jpeg" -> "jpg";
             case "image/png" -> "png";
-            case "application/zip" -> "zip";
+            case "text/plain" -> "txt";
             default -> "file";
         };
     }

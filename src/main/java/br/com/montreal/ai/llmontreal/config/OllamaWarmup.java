@@ -2,7 +2,6 @@ package br.com.montreal.ai.llmontreal.config;
 
 import br.com.montreal.ai.llmontreal.dto.OllamaRequestDTO;
 import br.com.montreal.ai.llmontreal.dto.ChatMessageResponseDTO;
-import br.com.montreal.ai.llmontreal.exception.OllamaException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -63,7 +62,8 @@ public class OllamaWarmup {
                     .block();
 
         } catch (Exception e) {
-            throw new OllamaException("Failed to warmup model", e.getCause());
+            logger.warn("Failed to warmup Ollama model '{}'. The application will continue, but Ollama may not be available: {}",
+                    defaultModel, e.getMessage());
         }
     }
 

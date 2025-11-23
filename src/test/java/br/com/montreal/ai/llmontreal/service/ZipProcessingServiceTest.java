@@ -51,24 +51,24 @@ class ZipProcessingServiceTest {
         byte[] zipData = createZipWithMultipleFiles();
         setupDocumentSaveMock();
 
-        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip");
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
 
         assertThat(documentIds)
                 .hasSize(2)
                 .containsExactly(1L, 2L);
-        
+
         verify(documentRepository, times(2)).save(any(Document.class));
-        verify(extractionService, times(2)).extractContentAsync(anyLong());
-        verify(extractionService).extractContentAsync(1L);
-        verify(extractionService).extractContentAsync(2L);
+        verify(extractionService, times(2)).extractContentAsync(anyLong(), any(String.class));
+        verify(extractionService).extractContentAsync(1L, "test-correlation-id");
+        verify(extractionService).extractContentAsync(2L, "test-correlation-id");
     }
 
     @Test
     @DisplayName("Should skip system files and directories")
     void shouldSkipSystemFiles() throws Exception {
         byte[] zipData = createZipWithSystemFiles();
-        
-        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip");
+
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
 
         assertThat(documentIds).isEmpty();
         verify(documentRepository, never()).save(any(Document.class));
@@ -81,11 +81,11 @@ class ZipProcessingServiceTest {
         ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
         setupDocumentSaveMock();
 
-        zipProcessingService.processZipFile(zipData, "documents.zip");
+        zipProcessingService.processZipFile(zipData, "documents.zip", "test-correlation-id");
 
         verify(documentRepository, times(2)).save(documentCaptor.capture());
         List<Document> savedDocuments = documentCaptor.getAllValues();
-        
+
         assertThat(savedDocuments).hasSize(2);
         assertThat(savedDocuments.get(0).getFileName())
                 .contains("documents/")
@@ -102,11 +102,11 @@ class ZipProcessingServiceTest {
         ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
         setupDocumentSaveMock();
 
-        zipProcessingService.processZipFile(zipData, "test.zip");
+        zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
 
         verify(documentRepository, times(2)).save(documentCaptor.capture());
         List<Document> savedDocuments = documentCaptor.getAllValues();
-        
+
         assertThat(savedDocuments)
                 .hasSize(2)
                 .allMatch(doc -> doc.getFileType() != null && !doc.getFileType().isEmpty())
@@ -120,11 +120,11 @@ class ZipProcessingServiceTest {
         ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
         setupDocumentSaveMock();
 
-        zipProcessingService.processZipFile(zipData, "test.zip");
+        zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
 
         verify(documentRepository, times(2)).save(documentCaptor.capture());
         List<Document> savedDocuments = documentCaptor.getAllValues();
-        
+
         assertThat(savedDocuments)
                 .allMatch(doc -> doc.getStatus() == DocumentStatus.PENDING)
                 .allMatch(doc -> doc.getCreatedAt() != null)
@@ -136,11 +136,11 @@ class ZipProcessingServiceTest {
     void shouldHandleEmptyFiles() throws Exception {
         byte[] zipData = createZipWithEmptyFile();
 
-        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip");
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
 
         assertThat(documentIds).isEmpty();
         verify(documentRepository, never()).save(any(Document.class));
-        verify(extractionService, never()).extractContentAsync(anyLong());
+        verify(extractionService, never()).extractContentAsync(anyLong(), any(String.class));
     }
 
     @Test
@@ -149,7 +149,7 @@ class ZipProcessingServiceTest {
         byte[] zipData = createZipWithUnsupportedFiles();
         setupDocumentSaveMock();
 
-        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip");
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
 
         assertThat(documentIds).hasSize(0);
     }
@@ -160,11 +160,11 @@ class ZipProcessingServiceTest {
         byte[] zipData = createZipWithMixedFiles();
         setupDocumentSaveMock();
 
-        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip");
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
 
         assertThat(documentIds).hasSize(1);
         verify(documentRepository, times(1)).save(any(Document.class));
-        verify(extractionService, times(1)).extractContentAsync(anyLong());
+        verify(extractionService, times(1)).extractContentAsync(anyLong(), any(String.class));
     }
 
     private void setupDocumentSaveMock() {

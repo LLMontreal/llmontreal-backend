@@ -114,4 +114,62 @@ public class DocumentExtractionService {
                 .filter(ex -> ex.supportsThisContentType(contentType))
                 .findFirst();
     }
+
+    public String extractContentSync(Long documentId) throws ExtractionException {
+        log.info("Starting synchronous extraction of document with id {}", documentId);
+        long startTime = System.currentTimeMillis();
+
+        try {
+            Document document = documentRepository.findById(documentId)
+                    .orElseThrow(() -> new EntityNotFoundException("Document with id " + documentId + " not found"));
+
+            document.setStatus(DocumentStatus.PROCESSING);
+            documentRepository.save(document);
+
+            String extractedContent = extractContent(
+                    document.getFileData(),
+                    document.getFileType()
+            );
+
+            long duration = System.currentTimeMillis() - startTime;
+
+            if(extractedContent == null || extractedContent.isBlank()) {
+                log.warn("Extraction for document {} returned empty content.", documentId);
+                document.setStatus(DocumentStatus.FAILED);
+                documentRepository.save(document);
+                throw new ExtractionException("Nenhum conteúdo pôde ser extraído do documento.");
+            }
+
+            log.info("Extraction completed successfully for document {} in {}ms. Content length: {} characters",
+                    documentId, duration, extractedContent != null ? extractedContent.length() : 0);
+
+            document.setExtractedContent(extractedContent);
+            documentRepository.save(document);
+
+            return extractedContent;
+
+        } catch (ExtractionException e) {
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("Extraction failed for document {} after {}ms: {}", documentId, duration, e.getMessage());
+
+            Document document = documentRepository.findById(documentId).orElse(null);
+            if (document != null) {
+                document.setStatus(DocumentStatus.FAILED);
+                documentRepository.save(document);
+            }
+
+            throw e;
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("Unexpected error during extraction for document {} after {}ms", documentId, duration, e);
+
+            Document document = documentRepository.findById(documentId).orElse(null);
+            if (document != null) {
+                document.setStatus(DocumentStatus.FAILED);
+                documentRepository.save(document);
+            }
+
+            throw new ExtractionException("Unexpected error: " + e.getMessage());
+        }
+    }
 }
