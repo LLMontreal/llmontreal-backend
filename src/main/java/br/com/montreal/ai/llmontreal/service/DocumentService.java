@@ -160,12 +160,13 @@ public class DocumentService {
     public void regenerateSummary(Long documentId, String correlationId) {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new EntityNotFoundException("Documento não encontrado com id: " + documentId));
+
         if (document.getExtractedContent() == null || document.getExtractedContent().isBlank()) {
-            throw new IllegalStateException(
-                    "O documento ainda não teve o conteúdo extraído. Aguarde a extração antes de regenerar o resumo.");
+            throw new IllegalStateException("O documento ainda não teve o conteúdo extraído.");
         }
+
         document.setSummary(null);
-        document.setStatus(DocumentStatus.PENDING);
+        document.setStatus(DocumentStatus.PROCESSING);
         document.setUpdatedAt(LocalDateTime.now());
         documentRepository.save(document);
 
@@ -173,8 +174,7 @@ public class DocumentService {
                 .correlationId(correlationId)
                 .documentId(documentId)
                 .build();
+
         kafkaSummaryTemplate.send(KafkaTopicConfig.SUMMARY_REQUEST_TOPIC, correlationId, requestDTO);
-        log.info("Regeneração de resumo solicitada para documento ID: {} com correlationId: {}", documentId,
-                correlationId);
     }
 }
