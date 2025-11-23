@@ -6,10 +6,18 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface OllamaLogApiCallRepository extends JpaRepository<OllamaLogApiCall, Long> {
     Optional<OllamaLogApiCall> findByCorrelationId(String correlationId);
+
+    List<OllamaLogApiCall> findByTimestampBetween(Instant startDate, Instant endDate);
+
+    List<OllamaLogApiCall> findByTimestampAfter(Instant startDate);
+
+    List<OllamaLogApiCall> findByTimestampBefore(Instant endDate);
 
     @Modifying
     @Query("UPDATE OllamaLogApiCall log " +
