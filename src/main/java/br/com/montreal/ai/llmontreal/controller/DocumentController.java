@@ -37,8 +37,7 @@ public class DocumentController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentUploadResponse> uploadFile(
             @RequestParam("file") @NotNull MultipartFile file,
-            HttpServletRequest request
-    ) {
+            HttpServletRequest request) {
         String correlationId = (String) request.getAttribute("requestId");
         DocumentUploadResponse response = documentService.uploadFile(file, correlationId);
         return ResponseEntity
@@ -58,5 +57,12 @@ public class DocumentController {
         return documentService.getSummary(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{id}/summary/regenerate")
+    public ResponseEntity<Void> regenerateSummary(@PathVariable Long id, HttpServletRequest request) {
+        String correlationId = (String) request.getAttribute("requestId");
+        documentService.regenerateSummary(id, correlationId);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).build();
     }
 }
