@@ -35,12 +35,14 @@ public class DocumentService {
 
     private static final long MAX_FILE_SIZE = 25L * 1024 * 1024;
     private static final String ZIP_CONTENT_TYPE = "application/zip";
+    private static final String ZIP_CONTENT_TYPE_ALT = "application/x-zip-compressed";
     private static final List<String> ALLOWED_CONTENT_TYPES = Arrays.asList(
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "image/jpeg",
             "image/png",
             ZIP_CONTENT_TYPE,
+            ZIP_CONTENT_TYPE_ALT,
             "text/plain");
 
     public Page<Document> getAllDocuments(Pageable pageable, DocumentStatus documentStatus) {
@@ -67,7 +69,7 @@ public class DocumentService {
             String contentType = file.getContentType();
             String fileName = file.getOriginalFilename();
 
-            if (ZIP_CONTENT_TYPE.equalsIgnoreCase(contentType)) {
+            if (ZIP_CONTENT_TYPE.equalsIgnoreCase(contentType) || ZIP_CONTENT_TYPE_ALT.equalsIgnoreCase(contentType))  {
                 return processZipFile(fileData, fileName, correlationId);
             }
 
