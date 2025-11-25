@@ -121,21 +121,16 @@ public class DocumentService {
                 savedDocument.getFileName(), savedDocument.getId());
 
         try {
-            // Extração síncrona do conteúdo
             extractionService.extractContentSync(savedDocument.getId());
 
-            // Recarrega o documento para obter o conteúdo extraído
             savedDocument = documentRepository.findById(savedDocument.getId())
                     .orElseThrow(() -> new FileUploadException("Documento não encontrado após extração"));
 
-            // Geração síncrona do resumo
             CompletableFuture<KafkaSummaryResponseDTO> summaryFuture =
                     ollamaProducerService.sendSummarizeRequest(savedDocument, correlationId);
 
-            // Aguarda o resumo ser gerado (com timeout de 10 minutos)
             KafkaSummaryResponseDTO summaryResponse = summaryFuture.get(10, TimeUnit.MINUTES);
 
-            // Atualiza o status do documento para COMPLETED
             savedDocument = documentRepository.findById(savedDocument.getId())
                     .orElseThrow(() -> new FileUploadException("Documento não encontrado após geração de resumo"));
             savedDocument.setStatus(DocumentStatus.COMPLETED);
