@@ -35,12 +35,14 @@ public class DocumentService {
 
     private static final long MAX_FILE_SIZE = 25L * 1024 * 1024;
     private static final String ZIP_CONTENT_TYPE = "application/zip";
+    private static final String ZIP_CONTENT_TYPE_ALT = "application/x-zip-compressed";
     private static final List<String> ALLOWED_CONTENT_TYPES = Arrays.asList(
             "application/pdf",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "image/jpeg",
             "image/png",
             ZIP_CONTENT_TYPE,
+            ZIP_CONTENT_TYPE_ALT,
             "text/plain");
 
     public Page<Document> getAllDocuments(Pageable pageable, DocumentStatus documentStatus) {
@@ -67,7 +69,7 @@ public class DocumentService {
             String contentType = file.getContentType();
             String fileName = file.getOriginalFilename();
 
-            if (ZIP_CONTENT_TYPE.equalsIgnoreCase(contentType)) {
+            if (ZIP_CONTENT_TYPE.equalsIgnoreCase(contentType) || ZIP_CONTENT_TYPE_ALT.equalsIgnoreCase(contentType))  {
                 return processZipFile(fileData, fileName, correlationId);
             }
 
@@ -160,12 +162,13 @@ public class DocumentService {
     public void regenerateSummary(Long documentId, String correlationId) {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new EntityNotFoundException("Documento não encontrado com id: " + documentId));
+
         if (document.getExtractedContent() == null || document.getExtractedContent().isBlank()) {
-            throw new IllegalStateException(
-                    "O documento ainda não teve o conteúdo extraído. Aguarde a extração antes de regenerar o resumo.");
+            throw new IllegalStateException("O documento ainda não teve o conteúdo extraído.");
         }
+
         document.setSummary(null);
-        document.setStatus(DocumentStatus.PENDING);
+        document.setStatus(DocumentStatus.PROCESSING);
         document.setUpdatedAt(LocalDateTime.now());
         documentRepository.save(document);
 
@@ -173,8 +176,7 @@ public class DocumentService {
                 .correlationId(correlationId)
                 .documentId(documentId)
                 .build();
+
         kafkaSummaryTemplate.send(KafkaTopicConfig.SUMMARY_REQUEST_TOPIC, correlationId, requestDTO);
-        log.info("Regeneração de resumo solicitada para documento ID: {} com correlationId: {}", documentId,
-                correlationId);
     }
 }
