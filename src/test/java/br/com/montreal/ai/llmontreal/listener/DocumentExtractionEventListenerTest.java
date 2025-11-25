@@ -4,6 +4,7 @@ import br.com.montreal.ai.llmontreal.entity.Document;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.event.DocumentExtractionCompletedEvent;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -91,15 +93,17 @@ class DocumentExtractionEventListenerTest {
     }
 
     @Test
-    @DisplayName("Should handle document not found gracefully")
-    void shouldHandleDocumentNotFoundGracefully() {
+    @DisplayName("Should throw EntityNotFoundException when document is not found")
+    void shouldThrowExceptionWhenDocumentNotFound() {
         DocumentExtractionCompletedEvent event = DocumentExtractionCompletedEvent.success(
                 this, 999L, extractedContent
         );
 
         when(documentRepository.findById(999L)).thenReturn(Optional.empty());
 
-        listener.handleExtractionCompleted(event);
+        assertThatThrownBy(() -> listener.handleExtractionCompleted(event))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("Document not found with id: 999");
 
         verify(documentRepository, never()).save(any(Document.class));
     }
@@ -115,18 +119,13 @@ class DocumentExtractionEventListenerTest {
         when(documentRepository.findById(1L)).thenReturn(Optional.of(document));
         when(documentRepository.save(any(Document.class))).thenReturn(document);
 
-        try {
-            Thread.sleep(10);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-
         listener.handleExtractionCompleted(event);
 
         verify(documentRepository).save(documentCaptor.capture());
         Document savedDocument = documentCaptor.getValue();
 
         assertThat(savedDocument.getUpdatedAt()).isNotNull();
+        assertThat(savedDocument.getUpdatedAt()).isAfterOrEqualTo(oldTimestamp);
     }
 
     @Test
@@ -149,4 +148,3 @@ class DocumentExtractionEventListenerTest {
         assertThat(savedDocument.getStatus()).isEqualTo(DocumentStatus.FAILED);
     }
 }
-

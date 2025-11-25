@@ -12,7 +12,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,8 +22,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("DocumentExtractionService Unit Tests")
@@ -35,6 +36,7 @@ class DocumentExtractionServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
     @Mock
     private OllamaProducerService ollamaProducerService;
 
@@ -42,9 +44,6 @@ class DocumentExtractionServiceTest {
     private ContentExtractor contentExtractor;
 
     private DocumentExtractionService documentExtractionService;
-
-    @Captor
-    private ArgumentCaptor<DocumentExtractionCompletedEvent> eventCaptor;
 
     private Document document;
     private final String extractedContent = "Este é o conteúdo extraído do documento";
@@ -65,20 +64,21 @@ class DocumentExtractionServiceTest {
                 List.of(contentExtractor),
                 documentRepository,
                 eventPublisher,
-                ollamaProducerService
-        );
+                ollamaProducerService);
     }
 
     @Test
     @DisplayName("Should extract content successfully")
     void shouldExtractContentSuccessfully() throws Exception {
         when(documentRepository.findById(1L)).thenReturn(Optional.of(document));
-        when(documentRepository.save(any(Document.class))).thenReturn(document);
         when(contentExtractor.supportsThisContentType("application/pdf")).thenReturn(true);
         when(contentExtractor.extractContent(any(InputStream.class), eq("application/pdf")))
                 .thenReturn(extractedContent);
 
         documentExtractionService.extractContentAsync(1L, "test-correlation-id");
+
+        ArgumentCaptor<DocumentExtractionCompletedEvent> eventCaptor = ArgumentCaptor
+                .forClass(DocumentExtractionCompletedEvent.class);
 
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         DocumentExtractionCompletedEvent event = eventCaptor.getValue();
@@ -87,14 +87,18 @@ class DocumentExtractionServiceTest {
         assertThat(event.getDocumentId()).isEqualTo(1L);
         assertThat(event.getExtractedContent()).isEqualTo(extractedContent);
         assertThat(event.getErrorMessage()).isNull();
+        assertThat(document.getStatus()).isEqualTo(DocumentStatus.PROCESSING);
     }
 
     @Test
-    @DisplayName("Should handle document not found")
+    @DisplayName("Should publish failure event when document is not found")
     void shouldHandleDocumentNotFound() {
         when(documentRepository.findById(999L)).thenReturn(Optional.empty());
 
         documentExtractionService.extractContentAsync(999L, "test-correlation-id");
+
+        ArgumentCaptor<DocumentExtractionCompletedEvent> eventCaptor = ArgumentCaptor
+                .forClass(DocumentExtractionCompletedEvent.class);
 
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         DocumentExtractionCompletedEvent event = eventCaptor.getValue();
@@ -102,19 +106,23 @@ class DocumentExtractionServiceTest {
         assertThat(event.isSuccess()).isFalse();
         assertThat(event.getDocumentId()).isEqualTo(999L);
         assertThat(event.getExtractedContent()).isNull();
-        assertThat(event.getErrorMessage()).contains("Unexpected error");
+        // mensagem montada no catch(Exception)
+        assertThat(event.getErrorMessage())
+                .isEqualTo("Unexpected error: Document with id 999 not found");
     }
 
     @Test
     @DisplayName("Should handle extraction exception")
     void shouldHandleExtractionException() throws Exception {
         when(documentRepository.findById(1L)).thenReturn(Optional.of(document));
-        when(documentRepository.save(any(Document.class))).thenReturn(document);
         when(contentExtractor.supportsThisContentType("application/pdf")).thenReturn(true);
         when(contentExtractor.extractContent(any(InputStream.class), eq("application/pdf")))
                 .thenThrow(new ExtractionException("Failed to extract content"));
 
         documentExtractionService.extractContentAsync(1L, "test-correlation-id");
+
+        ArgumentCaptor<DocumentExtractionCompletedEvent> eventCaptor = ArgumentCaptor
+                .forClass(DocumentExtractionCompletedEvent.class);
 
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         DocumentExtractionCompletedEvent event = eventCaptor.getValue();
@@ -135,13 +143,17 @@ class DocumentExtractionServiceTest {
                 .fileData("dummy data".getBytes())
                 .status(DocumentStatus.PENDING)
                 .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
                 .build();
 
         when(documentRepository.findById(2L)).thenReturn(Optional.of(unsupportedDoc));
-        when(documentRepository.save(any(Document.class))).thenReturn(unsupportedDoc);
+        // Nenhum extractor suporta "application/xyz"
         when(contentExtractor.supportsThisContentType("application/xyz")).thenReturn(false);
 
         documentExtractionService.extractContentAsync(2L, "test-correlation-id");
+
+        ArgumentCaptor<DocumentExtractionCompletedEvent> eventCaptor = ArgumentCaptor
+                .forClass(DocumentExtractionCompletedEvent.class);
 
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         DocumentExtractionCompletedEvent event = eventCaptor.getValue();
@@ -149,27 +161,44 @@ class DocumentExtractionServiceTest {
         assertThat(event.isSuccess()).isFalse();
         assertThat(event.getDocumentId()).isEqualTo(2L);
         assertThat(event.getExtractedContent()).isNull();
-        assertThat(event.getErrorMessage()).contains("No extractor found");
+        assertThat(event.getErrorMessage())
+                .isEqualTo("No extractor found for content type application/xyz");
     }
 
     @Test
     @DisplayName("Should update document status to PROCESSING before extraction")
     void shouldUpdateDocumentStatusToProcessing() throws Exception {
-        ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
-
         when(documentRepository.findById(1L)).thenReturn(Optional.of(document));
-        when(documentRepository.save(any(Document.class))).thenReturn(document);
         when(contentExtractor.supportsThisContentType("application/pdf")).thenReturn(true);
         when(contentExtractor.extractContent(any(InputStream.class), eq("application/pdf")))
                 .thenReturn(extractedContent);
 
         documentExtractionService.extractContentAsync(1L, "test-correlation-id");
 
-        verify(documentRepository).save(documentCaptor.capture());
+        assertThat(document.getStatus()).isEqualTo(DocumentStatus.PROCESSING);
+    }
 
-        Document savedDocument = documentCaptor.getValue();
-        assertThat(savedDocument.getStatus()).isEqualTo(DocumentStatus.PROCESSING);
-        assertThat(savedDocument.getUpdatedAt()).isNotNull();
+    @Test
+    @DisplayName("Should handle empty extracted content")
+    void shouldHandleEmptyExtractedContent() throws Exception {
+        when(documentRepository.findById(1L)).thenReturn(Optional.of(document));
+        when(contentExtractor.supportsThisContentType("application/pdf")).thenReturn(true);
+        when(contentExtractor.extractContent(any(InputStream.class), eq("application/pdf")))
+                .thenReturn("");
+
+        documentExtractionService.extractContentAsync(1L, "test-correlation-id");
+
+        ArgumentCaptor<DocumentExtractionCompletedEvent> eventCaptor = ArgumentCaptor
+                .forClass(DocumentExtractionCompletedEvent.class);
+
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        DocumentExtractionCompletedEvent event = eventCaptor.getValue();
+
+        assertThat(event.isSuccess()).isFalse();
+        assertThat(event.getDocumentId()).isEqualTo(1L);
+        assertThat(event.getExtractedContent()).isNull();
+        assertThat(event.getErrorMessage())
+                .isEqualTo("Nenhum conteúdo pôde ser extraído do documento.");
+        assertThat(document.getStatus()).isEqualTo(DocumentStatus.FAILED);
     }
 }
-

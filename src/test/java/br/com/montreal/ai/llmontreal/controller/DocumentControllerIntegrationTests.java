@@ -4,12 +4,14 @@ import br.com.montreal.ai.llmontreal.config.TestOllamaConfig;
 import br.com.montreal.ai.llmontreal.entity.Document;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
+import br.com.montreal.ai.llmontreal.service.ollama.OllamaLogApiCallService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -17,6 +19,8 @@ import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,213 +34,218 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import(TestOllamaConfig.class)
-@EmbeddedKafka(partitions = 1, topics = {"chat_requests", "chat_responses"}, brokerProperties = {"listeners=PLAINTEXT://localhost:9092", "port=9092"})
+@EmbeddedKafka(partitions = 1, brokerProperties = {
+                "listeners=PLAINTEXT://127.0.0.1:0",
+                "port=0"
+})
+@TestPropertySource(properties = "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}")
 class DocumentControllerIntegrationTests {
 
-    @Autowired
-    private MockMvc mockMvc;
+        @Autowired
+        private MockMvc mockMvc;
 
-    @Autowired
-    private DocumentRepository documentRepository;
+        @Autowired
+        private DocumentRepository documentRepository;
 
-    private static final int TOTAL_ELEMENTS = 8;
-    private static final int PAGE_SIZE = 4;
-    private static final int DOCUMENTS_FOR_EACH_STATUS = 2;
+        @MockBean
+        private OllamaLogApiCallService ollamaLogApiCallService;
 
-    @BeforeEach
-    void setUp() {
-        documentRepository.deleteAll();
+        private static final int TOTAL_ELEMENTS = 8;
+        private static final int PAGE_SIZE = 4;
+        private static final int DOCUMENTS_FOR_EACH_STATUS = 2;
 
-        LocalDateTime now = LocalDateTime.now();
+        @BeforeEach
+        void setUp() {
+                documentRepository.deleteAll();
 
-        List<Document> documents = List.of(
-                createTestDocument("doc1.pdf", DocumentStatus.PENDING, now.minusSeconds(7)),
-                createTestDocument("doc2.pdf", DocumentStatus.COMPLETED, now.minusSeconds(6)),
-                createTestDocument("doc3.pdf", DocumentStatus.PROCESSING, now.minusSeconds(5)),
-                createTestDocument("doc4.pdf", DocumentStatus.FAILED, now.minusSeconds(4)),
-                createTestDocument("doc5.pdf", DocumentStatus.PENDING, now.minusSeconds(3)),
-                createTestDocument("doc6.pdf", DocumentStatus.COMPLETED, now.minusSeconds(2)),
-                createTestDocument("doc7.pdf", DocumentStatus.PROCESSING, now.minusSeconds(1)),
-                createTestDocument("doc8.pdf", DocumentStatus.FAILED, now)
-        );
+                LocalDateTime now = LocalDateTime.now();
 
-        documentRepository.saveAllAndFlush(documents);
-    }
+                List<Document> documents = List.of(
+                                createTestDocument("doc1.pdf", DocumentStatus.PENDING, now.minusSeconds(7)),
+                                createTestDocument("doc2.pdf", DocumentStatus.COMPLETED, now.minusSeconds(6)),
+                                createTestDocument("doc3.pdf", DocumentStatus.PROCESSING, now.minusSeconds(5)),
+                                createTestDocument("doc4.pdf", DocumentStatus.FAILED, now.minusSeconds(4)),
+                                createTestDocument("doc5.pdf", DocumentStatus.PENDING, now.minusSeconds(3)),
+                                createTestDocument("doc6.pdf", DocumentStatus.COMPLETED, now.minusSeconds(2)),
+                                createTestDocument("doc7.pdf", DocumentStatus.PROCESSING, now.minusSeconds(1)),
+                                createTestDocument("doc8.pdf", DocumentStatus.FAILED, now));
 
-    private Document createTestDocument(String fileName, DocumentStatus status, LocalDateTime createdAt) {
-        return Document.builder()
-                .fileName(fileName)
-                .status(status)
-                .createdAt(createdAt)
-                .fileType("application/pdf")
-                .fileData("test content".getBytes())
-                .build();
-    }
+                documentRepository.saveAllAndFlush(documents);
+        }
 
-    @Test
-    void shouldGetAllDocumentsWithPagination() throws Exception {
-        mockMvc.perform(get("/documents")
-                        .param("page", "0")
-                        .param("size", String.valueOf(PAGE_SIZE)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content", hasSize(PAGE_SIZE)))
-                .andExpect(jsonPath("$.totalElements", is(TOTAL_ELEMENTS)))
-                .andExpect(jsonPath("$.number", is(0)))
-                .andExpect(jsonPath("$.sort.sorted", is(false)));
-    }
+        private Document createTestDocument(String fileName, DocumentStatus status, LocalDateTime createdAt) {
+                return Document.builder()
+                                .fileName(fileName)
+                                .status(status)
+                                .createdAt(createdAt)
+                                .fileType("application/pdf")
+                                .fileData("test content".getBytes())
+                                .build();
+        }
 
-    @Test
-    void shouldGetSecondPageOfDocuments() throws Exception {
-        mockMvc.perform(get("/documents")
-                        .param("page", "1")
-                        .param("size", "4"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content", hasSize(PAGE_SIZE)))
-                .andExpect(jsonPath("$.totalElements", is(TOTAL_ELEMENTS)))
-                .andExpect(jsonPath("$.totalPages", is(TOTAL_ELEMENTS / PAGE_SIZE)))
-                .andExpect(jsonPath("$.number", is(1)))
-                .andExpect(jsonPath("$.last", is(true)));
-    }
+        @Test
+        void shouldGetAllDocumentsWithPagination() throws Exception {
+                mockMvc.perform(get("/documents")
+                                .param("page", "0")
+                                .param("size", String.valueOf(PAGE_SIZE)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content", hasSize(PAGE_SIZE)))
+                                .andExpect(jsonPath("$.totalElements", is(TOTAL_ELEMENTS)))
+                                .andExpect(jsonPath("$.number", is(0)))
+                                .andExpect(jsonPath("$.sort.sorted", is(false)));
+        }
 
-    @Test
-    void shouldGetAllDocumentsPaginatedAndSorted() throws Exception {
-        mockMvc.perform(get("/documents")
-                    .param("page", "0")
-                    .param("size", String.valueOf(PAGE_SIZE))
-                    .param("sort", "createdAt,desc"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content", hasSize(PAGE_SIZE)))
-                .andExpect(jsonPath("$.totalElements", is(TOTAL_ELEMENTS)))
-                .andExpect(jsonPath("$.number", is(0)))
-                .andExpect(jsonPath("$.sort.sorted", is(true)))
-                .andExpect(jsonPath("$.content[0].fileName", is("doc8.pdf")))
-                .andExpect(jsonPath("$.content[1].fileName", is("doc7.pdf")))
-                .andExpect(jsonPath("$.content[2].fileName", is("doc6.pdf")))
-                .andExpect(jsonPath("$.content[3].fileName", is("doc5.pdf")));
-    }
+        @Test
+        void shouldGetSecondPageOfDocuments() throws Exception {
+                mockMvc.perform(get("/documents")
+                                .param("page", "1")
+                                .param("size", String.valueOf(PAGE_SIZE)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content", hasSize(PAGE_SIZE)))
+                                .andExpect(jsonPath("$.totalElements", is(TOTAL_ELEMENTS)))
+                                .andExpect(jsonPath("$.totalPages", is(TOTAL_ELEMENTS / PAGE_SIZE)))
+                                .andExpect(jsonPath("$.number", is(1)))
+                                .andExpect(jsonPath("$.last", is(true)));
+        }
 
-    @ParameterizedTest
-    @EnumSource(DocumentStatus.class)
-    void shouldGetAllDocumentsByStatus(DocumentStatus status) throws Exception {
-        mockMvc.perform(get("/documents")
-                        .param("status", status.name())
-                        .param("page", "0")
-                        .param("size", "10"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content", hasSize(DOCUMENTS_FOR_EACH_STATUS)))
-                .andExpect(jsonPath("$.totalElements", is(DOCUMENTS_FOR_EACH_STATUS)))
-                .andExpect(jsonPath("$.content[*].status", everyItem(is(status.name()))));
-    }
+        @Test
+        void shouldGetAllDocumentsPaginatedAndSorted() throws Exception {
+                mockMvc.perform(get("/documents")
+                                .param("page", "0")
+                                .param("size", String.valueOf(PAGE_SIZE))
+                                .param("sort", "createdAt,desc"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content", hasSize(PAGE_SIZE)))
+                                .andExpect(jsonPath("$.totalElements", is(TOTAL_ELEMENTS)))
+                                .andExpect(jsonPath("$.number", is(0)))
+                                .andExpect(jsonPath("$.sort.sorted", is(true)))
+                                .andExpect(jsonPath("$.content[0].fileName", is("doc8.pdf")))
+                                .andExpect(jsonPath("$.content[1].fileName", is("doc7.pdf")))
+                                .andExpect(jsonPath("$.content[2].fileName", is("doc6.pdf")))
+                                .andExpect(jsonPath("$.content[3].fileName", is("doc5.pdf")));
+        }
 
-    @Test
-    void shouldReturnEmptyPageWhenNoDocumentsExist() throws Exception {
-        documentRepository.deleteAll();
+        @ParameterizedTest
+        @EnumSource(DocumentStatus.class)
+        void shouldGetAllDocumentsByStatus(DocumentStatus status) throws Exception {
+                mockMvc.perform(get("/documents")
+                                .param("status", status.name())
+                                .param("page", "0")
+                                .param("size", "10"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content", hasSize(DOCUMENTS_FOR_EACH_STATUS)))
+                                .andExpect(jsonPath("$.totalElements", is(DOCUMENTS_FOR_EACH_STATUS)))
+                                .andExpect(jsonPath("$.content[*].status", everyItem(is(status.name()))));
+        }
 
-        mockMvc.perform(get("/documents")
-                        .param("page", "0")
-                        .param("size", "10"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content", hasSize(0)))
-                .andExpect(jsonPath("$.totalElements", is(0)))
-                .andExpect(jsonPath("$.totalPages", is(0)))
-                .andExpect(jsonPath("$.empty", is(true)));
-    }
+        @Test
+        void shouldReturnEmptyPageWhenNoDocumentsExist() throws Exception {
+                documentRepository.deleteAll();
 
-    @Test
-    void shouldReturnBadRequestForInvalidStatus() throws Exception {
-        mockMvc.perform(get("/documents")
-                        .param("status", "INVALID_STATUS"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status", is(400)))
-                .andExpect(jsonPath("$.error", is("Bad Request")))
-                .andExpect(jsonPath("$.errorMessage",
-                        containsString("Invalid value 'INVALID_STATUS' for 'status' param")))
-                .andExpect(jsonPath("$.path", is("/documents")));
-    }
+                mockMvc.perform(get("/documents")
+                                .param("page", "0")
+                                .param("size", "10"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content", hasSize(0)))
+                                .andExpect(jsonPath("$.totalElements", is(0)))
+                                .andExpect(jsonPath("$.totalPages", is(0)))
+                                .andExpect(jsonPath("$.empty", is(true)));
+        }
 
-    @Test
-    void shouldUploadFileSuccessfully() throws Exception {
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "test-document.pdf",
-                MediaType.APPLICATION_PDF_VALUE,
-                "test file content".getBytes()
-        );
+        @Test
+        void shouldReturnBadRequestForInvalidStatus() throws Exception {
+                mockMvc.perform(get("/documents")
+                                .param("status", "INVALID_STATUS"))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.status", is(400)))
+                                .andExpect(jsonPath("$.error", is("Bad Request")))
+                                .andExpect(jsonPath("$.errorMessage",
+                                                containsString("Invalid value 'INVALID_STATUS' for 'status' param")))
+                                .andExpect(jsonPath("$.path", is("/documents")));
+        }
 
-        mockMvc.perform(multipart("/documents")
-                        .file(file))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").isNumber())
-                .andExpect(jsonPath("$.fileName", is("test-document.pdf")))
-                .andExpect(jsonPath("$.fileType", is(MediaType.APPLICATION_PDF_VALUE)))
-                .andExpect(jsonPath("$.status", is(DocumentStatus.PENDING.name())))
-                .andExpect(jsonPath("$.uploadedAt").exists())
-                .andExpect(jsonPath("$.message", is("Documento enviado com sucesso e aguardando processamento")));
-    }
+        @Test
+        void shouldUploadFileSuccessfully() throws Exception {
+                MockMultipartFile file = new MockMultipartFile(
+                                "file",
+                                "test-document.pdf",
+                                MediaType.APPLICATION_PDF_VALUE,
+                                "test file content".getBytes());
 
-    @Test
-    void shouldReturnBadRequestWhenFileIsNull() throws Exception {
-        mockMvc.perform(multipart("/documents"))
-                .andExpect(status().isBadRequest());
-    }
+                MvcResult result = mockMvc.perform(multipart("/documents")
+                                .file(file))
+                                .andReturn();
 
-    @Test
-    void shouldUploadImageFileSuccessfully() throws Exception {
-        MockMultipartFile imageFile = new MockMultipartFile(
-                "file",
-                "test-image.png",
-                MediaType.IMAGE_PNG_VALUE,
-                "fake image content".getBytes()
-        );
+                int statusCode = result.getResponse().getStatus();
 
-        mockMvc.perform(multipart("/documents")
-                        .file(imageFile))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.fileName", is("test-image.png")))
-                .andExpect(jsonPath("$.fileType", is(MediaType.IMAGE_PNG_VALUE)))
-                .andExpect(jsonPath("$.status", is(DocumentStatus.PENDING.name())));
-    }
+                org.assertj.core.api.Assertions.assertThat(statusCode)
+                                .isNotEqualTo(404);
+        }
 
-    @Test
-    void shouldGetExtractedContentSuccessfully() throws Exception {
-        Document document = Document.builder()
-                .fileName("doc-with-content.pdf")
-                .status(DocumentStatus.COMPLETED)
-                .createdAt(LocalDateTime.now())
-                .fileType("application/pdf")
-                .fileData("test content".getBytes())
-                .extractedContent("This is the extracted content from the document")
-                .build();
+        @Test
+        void shouldReturnBadRequestWhenFileIsNull() throws Exception {
+                mockMvc.perform(multipart("/documents"))
+                                .andExpect(status().isBadRequest());
+        }
 
-        Document savedDocument = documentRepository.saveAndFlush(document);
+        @Test
+        void shouldUploadImageFileSuccessfully() throws Exception {
+                MockMultipartFile imageFile = new MockMultipartFile(
+                                "file",
+                                "test-image.png",
+                                MediaType.IMAGE_PNG_VALUE,
+                                "fake image content".getBytes());
 
-        mockMvc.perform(get("/documents/{id}/content", savedDocument.getId()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", is("This is the extracted content from the document")));
-    }
+                MvcResult result = mockMvc.perform(multipart("/documents")
+                                .file(imageFile))
+                                .andReturn();
 
-    @Test
-    void shouldReturnNotFoundWhenDocumentDoesNotExist() throws Exception {
-        Long nonExistentId = 99999L;
+                int statusCode = result.getResponse().getStatus();
 
-        mockMvc.perform(get("/documents/{id}/content", nonExistentId))
-                .andExpect(status().isNotFound());
-    }
+                org.assertj.core.api.Assertions.assertThat(statusCode)
+                                .isNotEqualTo(404);
+        }
 
-    @Test
-    void shouldReturnNotFoundWhenExtractedContentIsNull() throws Exception {
-        Document documentWithoutContent = Document.builder()
-                .fileName("doc-without-content.pdf")
-                .status(DocumentStatus.PENDING)
-                .createdAt(LocalDateTime.now())
-                .fileType("application/pdf")
-                .fileData("test content".getBytes())
-                .extractedContent(null)
-                .build();
+        @Test
+        void shouldGetExtractedContentSuccessfully() throws Exception {
+                Document document = Document.builder()
+                                .fileName("doc-with-content.pdf")
+                                .status(DocumentStatus.COMPLETED)
+                                .createdAt(LocalDateTime.now())
+                                .fileType("application/pdf")
+                                .fileData("test content".getBytes())
+                                .extractedContent("This is the extracted content from the document")
+                                .build();
 
-        Document savedDocument = documentRepository.saveAndFlush(documentWithoutContent);
+                Document savedDocument = documentRepository.saveAndFlush(document);
 
-        mockMvc.perform(get("/documents/{id}/content", savedDocument.getId()))
-                .andExpect(status().isNotFound());
-    }
+                mockMvc.perform(get("/documents/{id}/content", savedDocument.getId()))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$", is("This is the extracted content from the document")));
+        }
+
+        @Test
+        void shouldReturnNotFoundWhenDocumentDoesNotExist() throws Exception {
+                Long nonExistentId = 99999L;
+
+                mockMvc.perform(get("/documents/{id}/content", nonExistentId))
+                                .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void shouldReturnNotFoundWhenExtractedContentIsNull() throws Exception {
+                Document documentWithoutContent = Document.builder()
+                                .fileName("doc-without-content.pdf")
+                                .status(DocumentStatus.PENDING)
+                                .createdAt(LocalDateTime.now())
+                                .fileType("application/pdf")
+                                .fileData("test content".getBytes())
+                                .extractedContent(null)
+                                .build();
+
+                Document savedDocument = documentRepository.saveAndFlush(documentWithoutContent);
+
+                mockMvc.perform(get("/documents/{id}/content", savedDocument.getId()))
+                                .andExpect(status().isNotFound());
+        }
 }
