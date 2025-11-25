@@ -1,15 +1,15 @@
 package br.com.montreal.ai.llmontreal.controller;
 
 import br.com.montreal.ai.llmontreal.config.TestOllamaConfig;
-import br.com.montreal.ai.llmontreal.dto.ChatMessageRequestDTO;
 import br.com.montreal.ai.llmontreal.dto.ChatMessageResponseDTO;
+import br.com.montreal.ai.llmontreal.dto.OllamaRequestDTO;
 import br.com.montreal.ai.llmontreal.entity.ChatSession;
 import br.com.montreal.ai.llmontreal.entity.Document;
 import br.com.montreal.ai.llmontreal.entity.enums.Author;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.repository.ChatSessionRepository;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
-import br.com.montreal.ai.llmontreal.service.ChatProducerService;
+import br.com.montreal.ai.llmontreal.service.ollama.OllamaProducerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,7 +46,7 @@ class ChatControllerIntegrationTests {
     private ChatSessionRepository chatSessionRepository;
 
     @MockitoBean
-    private ChatProducerService chatProducerService;
+    private OllamaProducerService chatProducerService;
 
     private Document testDocument;
     private ChatSession testChatSession;
@@ -80,7 +80,7 @@ class ChatControllerIntegrationTests {
 
     @Test
     void shouldSendMessageSuccessfully() {
-        ChatMessageRequestDTO requestDTO = ChatMessageRequestDTO.builder()
+        OllamaRequestDTO requestDTO = OllamaRequestDTO.builder()
                 .model("llama2")
                 .prompt("What is this document about?")
                 .stream(false)
@@ -94,7 +94,7 @@ class ChatControllerIntegrationTests {
                 .response("This document discusses testing strategies for Spring Boot applications.")
                 .build();
 
-        when(chatProducerService.processMessage(any(ChatMessageRequestDTO.class), eq(testDocument.getId())))
+        when(chatProducerService.sendChatRequest(any(OllamaRequestDTO.class), eq(testDocument.getId()), any(String.class)))
                 .thenReturn(CompletableFuture.completedFuture(expectedResponse));
 
         webTestClient.post()
@@ -117,7 +117,7 @@ class ChatControllerIntegrationTests {
 
     @Test
     void shouldReturnBadRequestWhenPromptIsBlank() {
-        ChatMessageRequestDTO requestDTO = ChatMessageRequestDTO.builder()
+        OllamaRequestDTO requestDTO = OllamaRequestDTO.builder()
                 .model("llama2")
                 .prompt("")
                 .stream(false)
@@ -133,7 +133,7 @@ class ChatControllerIntegrationTests {
 
     @Test
     void shouldReturnBadRequestWhenPromptIsNull() {
-        ChatMessageRequestDTO requestDTO = ChatMessageRequestDTO.builder()
+        OllamaRequestDTO requestDTO = OllamaRequestDTO.builder()
                 .model("llama2")
                 .prompt(null)
                 .stream(false)
@@ -149,7 +149,7 @@ class ChatControllerIntegrationTests {
 
     @Test
     void shouldSendMessageWithDifferentModel() {
-        ChatMessageRequestDTO requestDTO = ChatMessageRequestDTO.builder()
+        OllamaRequestDTO requestDTO = OllamaRequestDTO.builder()
                 .model("mistral")
                 .prompt("Summarize this document")
                 .stream(false)
@@ -163,7 +163,7 @@ class ChatControllerIntegrationTests {
                 .response("The document provides an overview of integration testing.")
                 .build();
 
-        when(chatProducerService.processMessage(any(ChatMessageRequestDTO.class), eq(testDocument.getId())))
+        when(chatProducerService.sendChatRequest(any(OllamaRequestDTO.class), eq(testDocument.getId()), any(String.class)))
                 .thenReturn(CompletableFuture.completedFuture(expectedResponse));
 
         webTestClient.post()
@@ -188,7 +188,7 @@ class ChatControllerIntegrationTests {
                 "its main points, key takeaways, and recommendations? " +
                 "Please be as thorough as possible in your response.";
 
-        ChatMessageRequestDTO requestDTO = ChatMessageRequestDTO.builder()
+        OllamaRequestDTO requestDTO = OllamaRequestDTO.builder()
                 .model("llama2")
                 .prompt(longPrompt)
                 .stream(false)
@@ -202,7 +202,7 @@ class ChatControllerIntegrationTests {
                 .response("Here is a detailed analysis of the document...")
                 .build();
 
-        when(chatProducerService.processMessage(any(ChatMessageRequestDTO.class), eq(testDocument.getId())))
+        when(chatProducerService.sendChatRequest(any(OllamaRequestDTO.class), eq(testDocument.getId()), any(String.class)))
                 .thenReturn(CompletableFuture.completedFuture(expectedResponse));
 
         webTestClient.post()
@@ -221,7 +221,7 @@ class ChatControllerIntegrationTests {
 
     @Test
     void shouldHandleMultipleMessagesToSameDocument() {
-        ChatMessageRequestDTO firstRequest = ChatMessageRequestDTO.builder()
+        OllamaRequestDTO firstRequest = OllamaRequestDTO.builder()
                 .model("llama2")
                 .prompt("What is this document about?")
                 .stream(false)
@@ -235,7 +235,7 @@ class ChatControllerIntegrationTests {
                 .response("First response")
                 .build();
 
-        when(chatProducerService.processMessage(any(ChatMessageRequestDTO.class), eq(testDocument.getId())))
+        when(chatProducerService.sendChatRequest(any(OllamaRequestDTO.class), eq(testDocument.getId()), any(String.class)))
                 .thenReturn(CompletableFuture.completedFuture(firstResponse));
 
         webTestClient.post()
@@ -251,7 +251,7 @@ class ChatControllerIntegrationTests {
                     assert body.response().equals("First response");
                 });
 
-        ChatMessageRequestDTO secondRequest = ChatMessageRequestDTO.builder()
+        OllamaRequestDTO secondRequest = OllamaRequestDTO.builder()
                 .model("llama2")
                 .prompt("Can you elaborate on that?")
                 .stream(false)
@@ -265,7 +265,7 @@ class ChatControllerIntegrationTests {
                 .response("Second response with more details")
                 .build();
 
-        when(chatProducerService.processMessage(any(ChatMessageRequestDTO.class), eq(testDocument.getId())))
+        when(chatProducerService.sendChatRequest(any(OllamaRequestDTO.class), eq(testDocument.getId()), any(String.class)))
                 .thenReturn(CompletableFuture.completedFuture(secondResponse));
 
         webTestClient.post()

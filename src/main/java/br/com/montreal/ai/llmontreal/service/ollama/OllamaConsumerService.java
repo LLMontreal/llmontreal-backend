@@ -101,140 +101,19 @@ public class OllamaConsumerService {
                                 KafkaTopicConfig.CHAT_RESPONSE_TOPIC,
                                 kafkaChatTemplate);
         }
+    }
 
-        @KafkaListener(topics = KafkaTopicConfig.SUMMARY_REQUEST_TOPIC, groupId = "summary-processors-group")
-        public void summarizeDocumentContent(KafkaSummaryRequestDTO requestDTO) {
-                String correlationId = requestDTO.correlationId();
-                Long documentId = requestDTO.documentId();
+    private OllamaApiResponseDTO callOllamaApi(OllamaRequestDTO ollamaRequestDTO) {
+        OllamaApiResponseDTO ollamaResponse = webClient.post()
+                .uri("/api/generate")
+                .body(Mono.just(ollamaRequestDTO), OllamaApiResponseDTO.class)
+                .retrieve()
+                .bodyToMono(OllamaApiResponseDTO.class)
+                .timeout(Duration.ofMinutes(10))
+                .block();
 
-                Document doc = documentRepository.findById(documentId)
-                                .orElseThrow(() -> new EntityNotFoundException(
-                                                "Document not found by id: " + documentId));
-
-                OllamaRequestDTO ollamaRequestDTO = buildSummarizeRequest(doc);
-
-                String logMessage = String.format(
-                                "Received Kafka request %s for summarize document %s content. Calling model %s",
-                                correlationId, documentId, ollamaRequestDTO.model());
-
-                processOllamaRequest(
-                                correlationId,
-                                ollamaRequestDTO,
-                                logMessage,
-                                response -> buildSummarySuccessResponse(correlationId, doc, response),
-                                errorMsg -> buildSummaryErrorResponse(correlationId, doc.getId(), errorMsg),
-                                KafkaTopicConfig.SUMMARY_RESPONSE_TOPIC,
-                                kafkaSummaryTemplate);
-        }
-
-        private <ResponseT> void processOllamaRequest(
-                        String correlationId,
-                        OllamaRequestDTO ollamaRequestDTO,
-                        String logMessage,
-                        Function<OllamaApiResponseDTO, ResponseT> successHandler,
-                        Function<String, ResponseT> errorHandler,
-                        String responseTopic,
-                        KafkaTemplate<String, ResponseT> template) {
-                log.info(logMessage);
-                long startTime = System.currentTimeMillis();
-
-                try {
-                        OllamaApiResponseDTO ollamaResponse = callOllamaApi(ollamaRequestDTO);
-
-                        log.info("Ollama success for {}. Saving model response.", correlationId);
-
-                        ResponseT response = successHandler.apply(ollamaResponse);
-
-                        sendSuccessResponse(correlationId, response, responseTopic, template, startTime);
-                } catch (Exception e) {
-                        handleOllamaError(correlationId, e, errorHandler, responseTopic, template, startTime);
-                }
-        }
-
-        private OllamaApiResponseDTO callOllamaApi(OllamaRequestDTO ollamaRequestDTO) {
-                OllamaApiResponseDTO ollamaResponse = webClient.post()
-                                .uri("/api/generate")
-                                .body(Mono.just(ollamaRequestDTO), OllamaApiResponseDTO.class)
-                                .retrieve()
-                                .bodyToMono(OllamaApiResponseDTO.class)
-                                .timeout(Duration.ofMinutes(2))
-                                .block();
-
-                if (ollamaResponse == null) {
-                        throw new OllamaException("Ollama error: response is null");
-                }
-
-                return ollamaResponse;
-        }
-
-        private <ResponseT> void sendSuccessResponse(
-                        String correlationId,
-                        ResponseT response,
-                        String responseTopic,
-                        KafkaTemplate<String, ResponseT> template,
-                        long startTime) {
-                long jobLatency = System.currentTimeMillis() - startTime;
-                template.send(responseTopic, correlationId, response);
-                logApiCallService.updateApiCallLog(correlationId, jobLatency, 200, null);
-        }
-
-        private <ResponseT> void handleOllamaError(
-                        String correlationId,
-                        Exception e,
-                        Function<String, ResponseT> errorHandler,
-                        String responseTopic,
-                        KafkaTemplate<String, ResponseT> template,
-                        long startTime) {
-                log.error("Ollama call failed for {}: {}", correlationId, e.getMessage());
-
-                String errorMsg;
-                int statusCode = 500;
-
-                if (e instanceof WebClientResponseException ex) {
-                        errorMsg = ex.getResponseBodyAsString();
-                        statusCode = ex.getStatusCode().value();
-                } else {
-                        errorMsg = e.getMessage();
-                }
-
-                ResponseT response = errorHandler.apply(errorMsg);
-
-                long jobLatency = System.currentTimeMillis() - startTime;
-
-                template.send(responseTopic, correlationId, response);
-                logApiCallService.updateApiCallLog(correlationId, jobLatency, statusCode, errorMsg);
-        }
-
-        private KafkaChatResponseDTO buildChatSuccessResponse(
-                        String correlationId,
-                        Long sessionId,
-                        OllamaApiResponseDTO ollamaResponse) {
-                ChatMessage chatMessage = chatService
-                                .addMessageToContext(sessionId, ollamaResponse.response(), Author.MODEL);
-
-                ChatMessageResponseDTO chatMessageResponseDTO = ChatMessageResponseDTO.builder()
-                                .documentId(chatMessage.getChatSession().getDocument().getId())
-                                .chatSessionId(sessionId)
-                                .author(chatMessage.getAuthor())
-                                .createdAt(chatMessage.getCreatedAt())
-                                .response(chatMessage.getMessage())
-                                .build();
-
-                return KafkaChatResponseDTO.builder()
-                                .correlationId(correlationId)
-                                .chatMessageResponseDTO(chatMessageResponseDTO)
-                                .error(false)
-                                .errorMessage(null)
-                                .build();
-        }
-
-        private KafkaChatResponseDTO buildChatErrorResponse(String correlationId, String errorMsg) {
-                return KafkaChatResponseDTO.builder()
-                                .correlationId(correlationId)
-                                .chatMessageResponseDTO(null)
-                                .error(true)
-                                .errorMessage(errorMsg)
-                                .build();
+        if (ollamaResponse == null) {
+            throw new OllamaException("Ollama error: response is null");
         }
 
         private OllamaRequestDTO buildSummarizeRequest(Document doc) {

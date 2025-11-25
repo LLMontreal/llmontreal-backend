@@ -3,11 +3,13 @@ package br.com.montreal.ai.llmontreal.service;
 import br.com.montreal.ai.llmontreal.config.KafkaTopicConfig;
 import br.com.montreal.ai.llmontreal.dto.DocumentUploadResponse;
 import br.com.montreal.ai.llmontreal.dto.kafka.KafkaSummaryRequestDTO;
+import br.com.montreal.ai.llmontreal.dto.kafka.KafkaSummaryResponseDTO;
 import br.com.montreal.ai.llmontreal.entity.Document;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.exception.FileUploadException;
 import br.com.montreal.ai.llmontreal.exception.FileValidationException;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
+import br.com.montreal.ai.llmontreal.service.ollama.OllamaProducerService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +24,8 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -32,6 +36,7 @@ public class DocumentService {
     private final DocumentExtractionService extractionService;
     private final ZipProcessingService zipProcessingService;
     private final KafkaTemplate<String, KafkaSummaryRequestDTO> kafkaSummaryTemplate;
+    private final OllamaProducerService ollamaProducerService;
 
     private static final long MAX_FILE_SIZE = 25L * 1024 * 1024;
     private static final String ZIP_CONTENT_TYPE = "application/zip";
@@ -42,7 +47,7 @@ public class DocumentService {
             "image/jpeg",
             "image/png",
             ZIP_CONTENT_TYPE,
-            ZIP_CONTENT_TYPE_ALT,
+            "application/x-zip-compressed",
             "text/plain");
 
     public Page<Document> getAllDocuments(Pageable pageable, DocumentStatus documentStatus) {
@@ -116,10 +121,37 @@ public class DocumentService {
         log.info("Arquivo carregado com sucesso: {} (ID: {})",
                 savedDocument.getFileName(), savedDocument.getId());
 
-        extractionService.extractContentAsync(savedDocument.getId(), correlationId);
-        log.info("Extração assíncrona iniciada para documento ID: {}", savedDocument.getId());
+        try {
+            extractionService.extractContentSync(savedDocument.getId());
 
-        return new DocumentUploadResponse(savedDocument);
+            savedDocument = documentRepository.findById(savedDocument.getId())
+                    .orElseThrow(() -> new FileUploadException("Documento não encontrado após extração"));
+
+            CompletableFuture<KafkaSummaryResponseDTO> summaryFuture =
+                    ollamaProducerService.sendSummarizeRequest(savedDocument, correlationId);
+
+            KafkaSummaryResponseDTO summaryResponse = summaryFuture.get(10, TimeUnit.MINUTES);
+
+            savedDocument = documentRepository.findById(savedDocument.getId())
+                    .orElseThrow(() -> new FileUploadException("Documento não encontrado após geração de resumo"));
+            savedDocument.setStatus(DocumentStatus.COMPLETED);
+            savedDocument.setUpdatedAt(LocalDateTime.now());
+            savedDocument = documentRepository.save(savedDocument);
+
+            log.info("Processamento completo do documento ID: {} finalizado", savedDocument.getId());
+
+            return new DocumentUploadResponse(savedDocument);
+
+        } catch (Exception e) {
+            log.error("Erro ao processar documento ID: {}", savedDocument.getId(), e);
+
+            savedDocument = documentRepository.findById(savedDocument.getId()).orElse(savedDocument);
+            savedDocument.setStatus(DocumentStatus.FAILED);
+            savedDocument.setUpdatedAt(LocalDateTime.now());
+            documentRepository.save(savedDocument);
+
+            throw new FileUploadException("Erro ao processar documento: " + e.getMessage(), e);
+        }
     }
 
     private void validateFile(MultipartFile file) {

@@ -6,6 +6,7 @@ import br.com.montreal.ai.llmontreal.event.DocumentExtractionCompletedEvent;
 import br.com.montreal.ai.llmontreal.exception.ExtractionException;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
 import br.com.montreal.ai.llmontreal.service.extraction.ContentExtractor;
+import br.com.montreal.ai.llmontreal.service.ollama.OllamaProducerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,8 @@ class DocumentExtractionServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private OllamaProducerService ollamaProducerService;
 
     @Mock
     private ContentExtractor contentExtractor;
@@ -59,9 +62,10 @@ class DocumentExtractionServiceTest {
                 .build();
 
         documentExtractionService = new DocumentExtractionService(
+                List.of(contentExtractor),
                 documentRepository,
                 eventPublisher,
-                List.of(contentExtractor)
+                ollamaProducerService
         );
     }
 
@@ -74,7 +78,7 @@ class DocumentExtractionServiceTest {
         when(contentExtractor.extractContent(any(InputStream.class), eq("application/pdf")))
                 .thenReturn(extractedContent);
 
-        documentExtractionService.extractContentAsync(1L);
+        documentExtractionService.extractContentAsync(1L, "test-correlation-id");
 
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         DocumentExtractionCompletedEvent event = eventCaptor.getValue();
@@ -90,7 +94,7 @@ class DocumentExtractionServiceTest {
     void shouldHandleDocumentNotFound() {
         when(documentRepository.findById(999L)).thenReturn(Optional.empty());
 
-        documentExtractionService.extractContentAsync(999L);
+        documentExtractionService.extractContentAsync(999L, "test-correlation-id");
 
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         DocumentExtractionCompletedEvent event = eventCaptor.getValue();
@@ -110,7 +114,7 @@ class DocumentExtractionServiceTest {
         when(contentExtractor.extractContent(any(InputStream.class), eq("application/pdf")))
                 .thenThrow(new ExtractionException("Failed to extract content"));
 
-        documentExtractionService.extractContentAsync(1L);
+        documentExtractionService.extractContentAsync(1L, "test-correlation-id");
 
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         DocumentExtractionCompletedEvent event = eventCaptor.getValue();
@@ -137,7 +141,7 @@ class DocumentExtractionServiceTest {
         when(documentRepository.save(any(Document.class))).thenReturn(unsupportedDoc);
         when(contentExtractor.supportsThisContentType("application/xyz")).thenReturn(false);
 
-        documentExtractionService.extractContentAsync(2L);
+        documentExtractionService.extractContentAsync(2L, "test-correlation-id");
 
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         DocumentExtractionCompletedEvent event = eventCaptor.getValue();
@@ -152,17 +156,17 @@ class DocumentExtractionServiceTest {
     @DisplayName("Should update document status to PROCESSING before extraction")
     void shouldUpdateDocumentStatusToProcessing() throws Exception {
         ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
-        
+
         when(documentRepository.findById(1L)).thenReturn(Optional.of(document));
         when(documentRepository.save(any(Document.class))).thenReturn(document);
         when(contentExtractor.supportsThisContentType("application/pdf")).thenReturn(true);
         when(contentExtractor.extractContent(any(InputStream.class), eq("application/pdf")))
                 .thenReturn(extractedContent);
 
-        documentExtractionService.extractContentAsync(1L);
+        documentExtractionService.extractContentAsync(1L, "test-correlation-id");
 
         verify(documentRepository).save(documentCaptor.capture());
-        
+
         Document savedDocument = documentCaptor.getValue();
         assertThat(savedDocument.getStatus()).isEqualTo(DocumentStatus.PROCESSING);
         assertThat(savedDocument.getUpdatedAt()).isNotNull();
