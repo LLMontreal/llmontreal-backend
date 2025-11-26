@@ -41,6 +41,7 @@ public class DocumentExtractionService {
             log.info("Processing document: {} (type: {})", document.getFileName(), document.getFileType());
 
             document.setStatus(DocumentStatus.PROCESSING);
+            documentRepository.save(document);
 
             String extractedContent = extractContent(
                     document.getFileData(),
@@ -53,6 +54,7 @@ public class DocumentExtractionService {
                 log.warn("Extraction for document {} returned empty content.", documentId);
 
                 document.setStatus(DocumentStatus.FAILED);
+                documentRepository.save(document);
 
                 eventPublisher.publishEvent(
                     DocumentExtractionCompletedEvent.failure(

@@ -4,12 +4,13 @@ import br.com.montreal.ai.llmontreal.entity.Document;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.event.DocumentExtractionCompletedEvent;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -24,11 +25,16 @@ public class DocumentExtractionEventListener {
         log.debug("Handling extraction completed event for document {}: success={}",
                 event.getDocumentId(), event.isSuccess());
 
-        Document document = documentRepository.findById(event.getDocumentId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Document not found with id: " + event.getDocumentId()));
+        Optional<Document> optionalDocument = documentRepository.findById(event.getDocumentId());
+
+        if (optionalDocument.isEmpty()) {
+            log.warn("Document not found with id: {}. Event will be ignored.", event.getDocumentId());
+            return;
+        }
 
         try {
+            Document document = optionalDocument.get();
+
             if (event.isSuccess()) {
                 document.setExtractedContent(event.getExtractedContent());
                 document.setStatus(DocumentStatus.COMPLETED);
