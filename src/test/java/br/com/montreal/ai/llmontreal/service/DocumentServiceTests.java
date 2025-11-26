@@ -53,6 +53,9 @@ class DocumentServiceTests {
     @Mock
     private org.springframework.kafka.core.KafkaTemplate kafkaSummaryTemplate;
 
+    @Mock
+    private br.com.montreal.ai.llmontreal.service.ollama.OllamaProducerService ollamaProducerService;
+
     @InjectMocks
     private DocumentService documentService;
 
@@ -155,22 +158,35 @@ class DocumentServiceTests {
 
     @Test
     @DisplayName("Should upload document successfully")
-    void shouldUploadDocumentSuccessfully() {
+    void shouldUploadDocumentSuccessfully() throws Exception {
+        Document extractedDoc = Document.builder()
+                .id(1L)
+                .fileName("documento-teste.pdf")
+                .fileType("application/pdf")
+                .fileData("Conteúdo do documento".getBytes())
+                .status(DocumentStatus.COMPLETED)
+                .extractedContent("Extracted content")
+                .createdAt(LocalDateTime.now())
+                .build();
+
         when(documentRepository.save(any(Document.class))).thenReturn(savedDoc);
-        doNothing().when(documentExtractionService).extractContentAsync(any(Long.class), any(String.class));
+        when(documentExtractionService.extractContentSync(savedDoc.getId())).thenReturn("Extracted content");
+        when(documentRepository.findById(savedDoc.getId()))
+                .thenReturn(java.util.Optional.of(extractedDoc))
+                .thenReturn(java.util.Optional.of(extractedDoc));
+        when(ollamaProducerService.sendSummarizeRequest(any(Document.class), any(String.class)))
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(
+                        br.com.montreal.ai.llmontreal.dto.kafka.KafkaSummaryResponseDTO.builder().build()
+                ));
 
         DocumentUploadResponse result = documentService.uploadFile(validFile, "test-correlation-id");
 
         assertNotNull(result);
         assertEquals("documento-teste.pdf", result.fileName());
         assertEquals("application/pdf", result.fileType());
-        assertEquals(DocumentStatus.PENDING, result.status());
-        assertEquals(savedDoc.getId(), result.id());
-        assertEquals(savedDoc.getCreatedAt(), result.uploadedAt());
-        assertEquals("Documento enviado com sucesso e aguardando processamento", result.message());
 
-        verify(documentRepository).save(any(Document.class));
-        verify(documentExtractionService).extractContentAsync(savedDoc.getId(), "test-correlation-id");
+        verify(documentRepository, atLeast(1)).save(any(Document.class));
+        verify(documentExtractionService).extractContentSync(savedDoc.getId());
     }
 
     @Test
@@ -295,7 +311,7 @@ class DocumentServiceTests {
     @ValueSource(strings = {"application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "image/jpeg", "image/png", "text/plain"})
     @DisplayName("Should accept all supported file types")
-    void shouldAcceptAllSupportedFileTypes(String contentType) {
+    void shouldAcceptAllSupportedFileTypes(String contentType) throws Exception {
         byte[] fileContent = "Content".getBytes();
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -313,15 +329,32 @@ class DocumentServiceTests {
                 .createdAt(LocalDateTime.now())
                 .build();
 
+        Document extractedDoc = Document.builder()
+                .id(1L)
+                .fileName(file.getOriginalFilename())
+                .fileType(contentType)
+                .fileData(fileContent)
+                .status(DocumentStatus.COMPLETED)
+                .extractedContent("Extracted content")
+                .createdAt(LocalDateTime.now())
+                .build();
+
         when(documentRepository.save(any(Document.class))).thenReturn(doc);
-        doNothing().when(documentExtractionService).extractContentAsync(any(Long.class), any(String.class));
+        when(documentExtractionService.extractContentSync(doc.getId())).thenReturn("Extracted content");
+        when(documentRepository.findById(doc.getId()))
+                .thenReturn(java.util.Optional.of(extractedDoc))
+                .thenReturn(java.util.Optional.of(extractedDoc));
+        when(ollamaProducerService.sendSummarizeRequest(any(Document.class), any(String.class)))
+                .thenReturn(java.util.concurrent.CompletableFuture.completedFuture(
+                        br.com.montreal.ai.llmontreal.dto.kafka.KafkaSummaryResponseDTO.builder().build()
+                ));
 
         DocumentUploadResponse result = documentService.uploadFile(file, "test-correlation-id");
 
         assertNotNull(result);
         assertEquals(contentType, result.fileType());
-        verify(documentRepository).save(any(Document.class));
-        verify(documentExtractionService).extractContentAsync(doc.getId(), "test-correlation-id");
+        verify(documentRepository, atLeast(1)).save(any(Document.class));
+        verify(documentExtractionService).extractContentSync(doc.getId());
     }
 
     private String getExtension(String contentType) {

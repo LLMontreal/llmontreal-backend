@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
 @AutoConfigureWebTestClient
 @ActiveProfiles("test")
 @Import(TestOllamaConfig.class)
-@EmbeddedKafka(partitions = 1, topics = {"chat_requests", "chat_responses"}, brokerProperties = {"listeners=PLAINTEXT://localhost:9092", "port=9092"})
+@EmbeddedKafka(partitions = 1, topics = {"chat_requests", "chat_responses", "summary_requests", "summary_responses"})
 class ChatControllerIntegrationTests {
 
     @Autowired

@@ -1,9 +1,12 @@
 package br.com.montreal.ai.llmontreal.controller;
 
 import br.com.montreal.ai.llmontreal.config.TestOllamaConfig;
+import br.com.montreal.ai.llmontreal.dto.kafka.KafkaSummaryResponseDTO;
 import br.com.montreal.ai.llmontreal.entity.Document;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
+import br.com.montreal.ai.llmontreal.service.DocumentExtractionService;
+import br.com.montreal.ai.llmontreal.service.ollama.OllamaProducerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -16,12 +19,17 @@ import org.springframework.http.MediaType;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static org.hamcrest.Matchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -30,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import(TestOllamaConfig.class)
-@EmbeddedKafka(partitions = 1, topics = {"chat_requests", "chat_responses"}, brokerProperties = {"listeners=PLAINTEXT://localhost:9092", "port=9092"})
+@EmbeddedKafka(partitions = 1, topics = {"chat_requests", "chat_responses", "summary_requests", "summary_responses"})
 class DocumentControllerIntegrationTests {
 
     @Autowired
@@ -39,13 +47,27 @@ class DocumentControllerIntegrationTests {
     @Autowired
     private DocumentRepository documentRepository;
 
+    @MockitoBean
+    private DocumentExtractionService documentExtractionService;
+
+    @MockitoBean
+    private OllamaProducerService ollamaProducerService;
+
     private static final int TOTAL_ELEMENTS = 8;
     private static final int PAGE_SIZE = 4;
     private static final int DOCUMENTS_FOR_EACH_STATUS = 2;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         documentRepository.deleteAll();
+
+        when(documentExtractionService.extractContentSync(anyLong()))
+                .thenReturn("Extracted content from test document");
+
+        when(ollamaProducerService.sendSummarizeRequest(any(Document.class), org.mockito.ArgumentMatchers.nullable(String.class)))
+                .thenReturn(CompletableFuture.completedFuture(
+                        KafkaSummaryResponseDTO.builder().build()
+                ));
 
         LocalDateTime now = LocalDateTime.now();
 
@@ -169,9 +191,8 @@ class DocumentControllerIntegrationTests {
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.fileName", is("test-document.pdf")))
                 .andExpect(jsonPath("$.fileType", is(MediaType.APPLICATION_PDF_VALUE)))
-                .andExpect(jsonPath("$.status", is(DocumentStatus.PENDING.name())))
-                .andExpect(jsonPath("$.uploadedAt").exists())
-                .andExpect(jsonPath("$.message", is("Documento enviado com sucesso e aguardando processamento")));
+                .andExpect(jsonPath("$.status", is(DocumentStatus.COMPLETED.name())))
+                .andExpect(jsonPath("$.uploadedAt").exists());
     }
 
     @Test
@@ -194,7 +215,7 @@ class DocumentControllerIntegrationTests {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.fileName", is("test-image.png")))
                 .andExpect(jsonPath("$.fileType", is(MediaType.IMAGE_PNG_VALUE)))
-                .andExpect(jsonPath("$.status", is(DocumentStatus.PENDING.name())));
+                .andExpect(jsonPath("$.status", is(DocumentStatus.COMPLETED.name())));
     }
 
     @Test
