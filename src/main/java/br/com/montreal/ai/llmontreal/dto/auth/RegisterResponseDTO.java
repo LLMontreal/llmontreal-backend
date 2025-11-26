@@ -1,9 +1,11 @@
 package br.com.montreal.ai.llmontreal.dto.auth;
 
 public record RegisterResponseDTO(
-    Long id,
-    String username,
-    String email,
-    String role,
-    String message
-) {}
+        String token,
+        UserDTO user) {
+    public record UserDTO(
+            Long id,
+            String name,
+            String email) {
+    }
+}

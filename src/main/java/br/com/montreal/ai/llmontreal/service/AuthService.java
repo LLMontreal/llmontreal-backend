@@ -52,15 +52,16 @@ public class AuthService {
                 .build();
 
         User savedUser = userRepository.save(user);
+        String jwtToken = jwtService.generateToken(savedUser);
+
         log.info("User registered successfully: ID={}, username={}", savedUser.getId(), savedUser.getUsername());
 
-        return new RegisterResponseDTO(
+        RegisterResponseDTO.UserDTO userDTO = new RegisterResponseDTO.UserDTO(
                 savedUser.getId(),
                 savedUser.getUsername(),
-                savedUser.getEmail(),
-                savedUser.getRole().name(),
-                "Usuário criado com sucesso"
-        );
+                savedUser.getEmail());
+
+        return new RegisterResponseDTO(jwtToken, userDTO);
     }
 
     public LoginResponseDTO login(LoginRequestDTO request) {
@@ -69,20 +70,18 @@ public class AuthService {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         request.username(),
-                        request.password()
-                )
-        );
+                        request.password()));
 
         User user = (User) authentication.getPrincipal();
         String jwtToken = jwtService.generateToken(user);
 
         log.info("User logged in successfully: {}", user.getUsername());
 
-        return new LoginResponseDTO(
-                jwtToken,
+        LoginResponseDTO.UserDTO userDTO = new LoginResponseDTO.UserDTO(
+                user.getId(),
                 user.getUsername(),
-                user.getEmail(),
-                user.getRole().name()
-        );
+                user.getEmail());
+
+        return new LoginResponseDTO(jwtToken, userDTO);
     }
 }
