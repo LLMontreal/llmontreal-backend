@@ -5,16 +5,21 @@ import br.com.montreal.ai.llmontreal.dto.DocumentUploadResponse;
 import br.com.montreal.ai.llmontreal.dto.kafka.KafkaSummaryRequestDTO;
 import br.com.montreal.ai.llmontreal.dto.kafka.KafkaSummaryResponseDTO;
 import br.com.montreal.ai.llmontreal.entity.Document;
+import br.com.montreal.ai.llmontreal.entity.User;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.exception.FileUploadException;
 import br.com.montreal.ai.llmontreal.exception.FileValidationException;
+import br.com.montreal.ai.llmontreal.exception.auth.UnauthorizedAccessException;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
+import br.com.montreal.ai.llmontreal.repository.UserRepository;
 import br.com.montreal.ai.llmontreal.service.ollama.OllamaProducerService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -33,6 +38,7 @@ import java.util.concurrent.TimeUnit;
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
+    private final UserRepository userRepository;
     private final DocumentExtractionService extractionService;
     private final ZipProcessingService zipProcessingService;
     private final KafkaTemplate<String, KafkaSummaryRequestDTO> kafkaSummaryTemplate;
@@ -47,23 +53,32 @@ public class DocumentService {
             "image/jpeg",
             "image/png",
             ZIP_CONTENT_TYPE,
-            "application/x-zip-compressed",
+            ZIP_CONTENT_TYPE_ALT,
             "text/plain");
 
+    private User getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return (User) authentication.getPrincipal();
+    }
+
+    public void validateDocumentOwnership(Long documentId) {
+        User currentUser = getCurrentUser();
+        Document document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new EntityNotFoundException("Documento não encontrado"));
+
+        if (!document.getUser().getId().equals(currentUser.getId())) {
+            throw new UnauthorizedAccessException("Você não tem permissão para acessar este documento");
+        }
+    }
+
     public Page<Document> getAllDocuments(Pageable pageable, DocumentStatus documentStatus) {
+        User currentUser = getCurrentUser();
+
         if (documentStatus == null) {
-            return documentRepository.findAll(pageable);
+            return documentRepository.findAllByUser(currentUser, pageable);
         }
 
-        return documentRepository.findAllByStatus(pageable, documentStatus);
-    }
-
-    public Page<Document> getAllDocuments(Pageable pageable) {
-        return documentRepository.findAll(pageable);
-    }
-
-    public Page<Document> getAllDocumentsByStatus(Pageable pageable, DocumentStatus status) {
-        return documentRepository.findAllByStatus(pageable, status);
+        return documentRepository.findAllByUserAndStatus(currentUser, documentStatus, pageable);
     }
 
     public DocumentUploadResponse uploadFile(MultipartFile file, String correlationId) {
@@ -91,7 +106,8 @@ public class DocumentService {
     private DocumentUploadResponse processZipFile(byte[] zipData, String fileName, String correlationId) {
         log.info("Processing ZIP file: {}", fileName);
 
-        List<Long> documentIds = zipProcessingService.processZipFile(zipData, fileName, correlationId);
+        User currentUser = getCurrentUser();
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, fileName, correlationId, currentUser);
 
         if (documentIds.isEmpty()) {
             log.warn("No valid documents found in ZIP: {}", fileName);
@@ -108,11 +124,14 @@ public class DocumentService {
 
     private DocumentUploadResponse processSingleFile(String fileName, String contentType, byte[] fileData,
             String correlationId) {
+        User currentUser = getCurrentUser();
+
         Document document = Document.builder()
                 .fileName(fileName)
                 .fileType(contentType)
                 .fileData(fileData)
                 .status(DocumentStatus.PENDING)
+                .user(currentUser)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -182,16 +201,19 @@ public class DocumentService {
     }
 
     public Optional<String> getExtractedContent(Long documentId) {
+        validateDocumentOwnership(documentId);
         return documentRepository.findById(documentId)
                 .map(Document::getExtractedContent);
     }
 
     public Optional<String> getSummary(Long documentId) {
+        validateDocumentOwnership(documentId);
         return documentRepository.findById(documentId)
                 .map(Document::getSummary);
     }
 
     public void regenerateSummary(Long documentId, String correlationId) {
+        validateDocumentOwnership(documentId);
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new EntityNotFoundException("Documento não encontrado com id: " + documentId));
 

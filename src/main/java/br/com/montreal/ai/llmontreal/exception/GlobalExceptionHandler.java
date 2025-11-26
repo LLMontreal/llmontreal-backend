@@ -1,11 +1,16 @@
 package br.com.montreal.ai.llmontreal.exception;
 
+import br.com.montreal.ai.llmontreal.exception.auth.DuplicateUserException;
+import br.com.montreal.ai.llmontreal.exception.auth.UnauthorizedAccessException;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -146,5 +151,85 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorDTO);
+    }
+
+    @ExceptionHandler(DuplicateUserException.class)
+    public ResponseEntity<ErrorResponseDTO> handleDuplicateUser(
+            DuplicateUserException ex,
+            HttpServletRequest request) {
+        log.warn("Duplicate user error: {}", ex.getMessage());
+
+        ErrorResponseDTO errorDTO = new ErrorResponseDTO(
+                HttpStatus.CONFLICT.value(),
+                "Duplicate User",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorDTO);
+    }
+
+    @ExceptionHandler(UnauthorizedAccessException.class)
+    public ResponseEntity<ErrorResponseDTO> handleUnauthorizedAccess(
+            UnauthorizedAccessException ex,
+            HttpServletRequest request) {
+        log.warn("Unauthorized access attempt: {}", ex.getMessage());
+
+        ErrorResponseDTO errorDTO = new ErrorResponseDTO(
+                HttpStatus.FORBIDDEN.value(),
+                "Forbidden",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorDTO);
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ErrorResponseDTO> handleBadCredentials(
+            BadCredentialsException ex,
+            HttpServletRequest request) {
+        log.warn("Bad credentials: {}", ex.getMessage());
+
+        ErrorResponseDTO errorDTO = new ErrorResponseDTO(
+                HttpStatus.UNAUTHORIZED.value(),
+                "Unauthorized",
+                "Credenciais inválidas",
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorDTO);
+    }
+
+    @ExceptionHandler(UsernameNotFoundException.class)
+    public ResponseEntity<ErrorResponseDTO> handleUserNotFound(
+            UsernameNotFoundException ex,
+            HttpServletRequest request) {
+        log.warn("User not found: {}", ex.getMessage());
+
+        ErrorResponseDTO errorDTO = new ErrorResponseDTO(
+                HttpStatus.UNAUTHORIZED.value(),
+                "Unauthorized",
+                "Credenciais inválidas",
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorDTO);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponseDTO> handleAccessDenied(
+            AccessDeniedException ex,
+            HttpServletRequest request) {
+        log.warn("Access denied: {}", ex.getMessage());
+
+        ErrorResponseDTO errorDTO = new ErrorResponseDTO(
+                HttpStatus.FORBIDDEN.value(),
+                "Forbidden",
+                "Acesso negado",
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorDTO);
     }
 }

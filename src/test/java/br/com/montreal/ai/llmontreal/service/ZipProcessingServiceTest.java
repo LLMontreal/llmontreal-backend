@@ -1,7 +1,9 @@
 package br.com.montreal.ai.llmontreal.service;
 
 import br.com.montreal.ai.llmontreal.entity.Document;
+import br.com.montreal.ai.llmontreal.entity.User;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
+import br.com.montreal.ai.llmontreal.entity.enums.Role;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,15 +36,26 @@ class ZipProcessingServiceTest {
     private DocumentExtractionService extractionService;
 
     private final AtomicLong idGenerator = new AtomicLong(1);
+    private User testUser;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
         zipProcessingService = new ZipProcessingService(documentRepository, extractionService);
-        
+
         ReflectionTestUtils.setField(zipProcessingService, "maxEntrySize", 104857600L);
-        
+
         idGenerator.set(1);
+
+        // Create test user
+        testUser = User.builder()
+                .id(1L)
+                .username("testuser")
+                .email("test@example.com")
+                .password("password")
+                .role(Role.USER)
+                .enabled(true)
+                .build();
     }
 
     @Test
@@ -51,7 +64,7 @@ class ZipProcessingServiceTest {
         byte[] zipData = createZipWithMultipleFiles();
         setupDocumentSaveMock();
 
-        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id", testUser);
 
         assertThat(documentIds)
                 .hasSize(2)
@@ -68,7 +81,7 @@ class ZipProcessingServiceTest {
     void shouldSkipSystemFiles() throws Exception {
         byte[] zipData = createZipWithSystemFiles();
 
-        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id", testUser);
 
         assertThat(documentIds).isEmpty();
         verify(documentRepository, never()).save(any(Document.class));
@@ -81,7 +94,7 @@ class ZipProcessingServiceTest {
         ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
         setupDocumentSaveMock();
 
-        zipProcessingService.processZipFile(zipData, "documents.zip", "test-correlation-id");
+        zipProcessingService.processZipFile(zipData, "documents.zip", "test-correlation-id", testUser);
 
         verify(documentRepository, times(2)).save(documentCaptor.capture());
         List<Document> savedDocuments = documentCaptor.getAllValues();
@@ -102,7 +115,7 @@ class ZipProcessingServiceTest {
         ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
         setupDocumentSaveMock();
 
-        zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
+        zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id", testUser);
 
         verify(documentRepository, times(2)).save(documentCaptor.capture());
         List<Document> savedDocuments = documentCaptor.getAllValues();
@@ -120,7 +133,7 @@ class ZipProcessingServiceTest {
         ArgumentCaptor<Document> documentCaptor = ArgumentCaptor.forClass(Document.class);
         setupDocumentSaveMock();
 
-        zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
+        zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id", testUser);
 
         verify(documentRepository, times(2)).save(documentCaptor.capture());
         List<Document> savedDocuments = documentCaptor.getAllValues();
@@ -136,7 +149,7 @@ class ZipProcessingServiceTest {
     void shouldHandleEmptyFiles() throws Exception {
         byte[] zipData = createZipWithEmptyFile();
 
-        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id", testUser);
 
         assertThat(documentIds).isEmpty();
         verify(documentRepository, never()).save(any(Document.class));
@@ -149,7 +162,7 @@ class ZipProcessingServiceTest {
         byte[] zipData = createZipWithUnsupportedFiles();
         setupDocumentSaveMock();
 
-        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id", testUser);
 
         assertThat(documentIds).hasSize(0);
     }
@@ -160,7 +173,7 @@ class ZipProcessingServiceTest {
         byte[] zipData = createZipWithMixedFiles();
         setupDocumentSaveMock();
 
-        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id");
+        List<Long> documentIds = zipProcessingService.processZipFile(zipData, "test.zip", "test-correlation-id", testUser);
 
         assertThat(documentIds).hasSize(1);
         verify(documentRepository, times(1)).save(any(Document.class));

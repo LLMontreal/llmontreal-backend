@@ -12,7 +12,8 @@ public record DocumentDTO(
         LocalDateTime updatedAt,
         String fileName,
         String fileType,
-        String summary
+        String summary,
+        String username
 ) {
     public DocumentDTO(Document doc) {
         this(
@@ -22,7 +23,8 @@ public record DocumentDTO(
                 doc.getUpdatedAt(),
                 doc.getFileName(),
                 doc.getFileType(),
-                doc.getSummary()
+                doc.getSummary(),
+                doc.getUser().getUsername()
         );
     }
 }

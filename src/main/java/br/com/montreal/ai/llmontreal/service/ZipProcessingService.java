@@ -1,6 +1,7 @@
 package br.com.montreal.ai.llmontreal.service;
 
 import br.com.montreal.ai.llmontreal.entity.Document;
+import br.com.montreal.ai.llmontreal.entity.User;
 import br.com.montreal.ai.llmontreal.entity.enums.DocumentStatus;
 import br.com.montreal.ai.llmontreal.exception.FileUploadException;
 import br.com.montreal.ai.llmontreal.repository.DocumentRepository;
@@ -31,7 +32,7 @@ public class ZipProcessingService {
     @Value("${file.upload.zip.max-entry-size:104857600}")
     private long maxEntrySize;
 
-    public List<Long> processZipFile(byte[] zipData, String originalZipFileName, String correlationId) {
+    public List<Long> processZipFile(byte[] zipData, String originalZipFileName, String correlationId, User user) {
         List<Long> createdDocumentIds = new ArrayList<>();
         int[] stats = {0, 0, 0};
 
@@ -39,7 +40,7 @@ public class ZipProcessingService {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
                 try {
-                    processZipEntry(zis, entry, originalZipFileName, createdDocumentIds, stats, correlationId);
+                    processZipEntry(zis, entry, originalZipFileName, createdDocumentIds, stats, correlationId, user);
                 } catch (Exception e) {
                     log.error("Error processing ZIP entry {}: {}", entry.getName(), e.getMessage());
                     stats[2]++;
@@ -60,7 +61,7 @@ public class ZipProcessingService {
     }
 
     private void processZipEntry(ZipInputStream zis, ZipEntry entry, String zipFileName,
-                                  List<Long> createdDocumentIds, int[] stats, String correlationId) throws Exception {
+                                  List<Long> createdDocumentIds, int[] stats, String correlationId, User user) throws Exception {
         String entryName = entry.getName();
 
         if (shouldSkipEntry(entry, entryName)) {
@@ -77,14 +78,14 @@ public class ZipProcessingService {
         }
 
         String contentType = detectContentType(entryData, entryName);
-        
+
         if (!isSupportedContentType(contentType)) {
             stats[1]++;
             log.debug("Skipping unsupported type {} for entry: {}", contentType, entryName);
             return;
         }
 
-        Document document = createDocumentFromZipEntry(entryName, zipFileName, contentType, entryData);
+        Document document = createDocumentFromZipEntry(entryName, zipFileName, contentType, entryData, user);
         Document savedDocument = documentRepository.save(document);
         
         log.info("Created document from ZIP: {} (ID: {}, Type: {})", 
@@ -157,8 +158,8 @@ public class ZipProcessingService {
         return supportedTypes.contains(contentType);
     }
 
-    private Document createDocumentFromZipEntry(String entryName, String zipFileName, 
-                                                 String contentType, byte[] data) {
+    private Document createDocumentFromZipEntry(String entryName, String zipFileName,
+                                                 String contentType, byte[] data, User user) {
         String fileName = extractFileName(zipFileName) + "/" + entryName;
 
         return Document.builder()
@@ -166,6 +167,7 @@ public class ZipProcessingService {
                 .fileType(contentType)
                 .fileData(data)
                 .status(DocumentStatus.PENDING)
+                .user(user)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
